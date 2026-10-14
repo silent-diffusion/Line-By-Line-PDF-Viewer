@@ -109,6 +109,29 @@ public class VisualSmokeTests
         Pump(800);
         Save(window, Path.Combine(outDir, "4-scan-ocr.png"));
 
+        // Value Grab: chips beside the band in landscape, in the HUD pill in portrait.
+        store.Settings.ValueGrabEnabled = true;
+        store.Save();
+        window.OpenFile(SamplePath);
+        Pump(1500);
+        Invoke(window, "MoveNext");
+        Invoke(window, "MoveNext");
+        Invoke(window, "MoveNext");
+        Invoke(window, "MoveNext");
+        Pump(800);
+        Save(window, Path.Combine(outDir, "5-value-grab.png"));
+        window.Width = 1080;
+        window.Height = 1872;
+        Pump(1500);
+        Save(window, Path.Combine(outDir, "6-value-grab-portrait.png"));
+
+        settings = new SettingsWindow(store, window) { Left = -20000, Top = 0, ShowActivated = false };
+        settings.Show();
+        ((System.Windows.Controls.RadioButton)settings.FindName("NavValueGrab")).IsChecked = true;
+        Pump(400);
+        Save(settings, Path.Combine(outDir, "7-settings-value-grab.png"));
+        settings.Close();
+
         window.Close();
     }
 

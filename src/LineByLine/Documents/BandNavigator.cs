@@ -182,6 +182,14 @@ public sealed class BandNavigator(Document doc)
         return (stops[pos], stops[Math.Min(stops.Count - 1, pos + LinesInView - 1)]);
     }
 
+    /// <summary>Row indices of the lines inside the band (stops only, so wrapped lines are left out under column focus).</summary>
+    public IReadOnlyList<int> BandStopRows()
+    {
+        if (BandRows() is not { } band)
+            return [];
+        return Stops(Page).Where(i => i >= band.First && i <= band.Last).ToList();
+    }
+
     /// <summary>1-based range of stops in the band, and the page's stop count, for "Lines 3–4 of 18".</summary>
     public (int From, int To, int Of)? Progress()
     {

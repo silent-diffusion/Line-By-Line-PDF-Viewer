@@ -48,6 +48,8 @@ public partial class MainWindow : Window
     private bool _portrait;
     private int _renderGeneration;
     private bool _ocrRunning;
+    private readonly List<Button> _bandChips = [];
+    private HashSet<string> _reportedHotkeyFailures = [];
 
     // band drag / resize
     private DragMode _drag;
@@ -103,12 +105,21 @@ public partial class MainWindow : Window
     {
         if (_hotkeys == null)
             return;
-        _hotkeys.Apply(S.AllHotkeys());
-        if (_hotkeys.Failed.Count > 0)
+        // Copy hotkeys exist only while Value Grab is on, so it can be switched off completely.
+        _hotkeys.Apply(S.AllHotkeys()
+            .Where(kv => S.ValueGrabEnabled || !Hotkey.IsValueGrabAction(kv.Key))
+            .ToDictionary(kv => kv.Key, kv => kv.Value));
+        // Settings re-register hotkeys on every change; only speak up when something newly fails.
+        var failed = _hotkeys.Failed.Select(a => S.GetHotkey(a).ToDisplayString()).ToHashSet();
+        if (failed.Count > 0 && !failed.SetEquals(_reportedHotkeyFailures))
         {
-            var names = string.Join(", ", _hotkeys.Failed.Select(a => S.GetHotkey(a).ToDisplayString()));
-            ShowToast($"Couldn't register {names}. Another app may be using it. You can pick a different shortcut in Settings → Hotkeys.");
+            var names = string.Join(", ", failed);
+            var anotherCopy = System.Diagnostics.Process.GetProcessesByName("LineByLine").Length > 1;
+            ShowToast(anotherCopy
+                ? $"Another Line by Line window is already using {names}. Close it so this one gets the shortcuts."
+                : $"Couldn't register {names}. Another app may be using it. You can pick a different shortcut in Settings → Hotkeys.", seconds: 7);
         }
+        _reportedHotkeyFailures = failed;
     }
 
     /// <summary>Lets the settings window pause hotkeys while it records a new shortcut.</summary>
@@ -120,6 +131,12 @@ public partial class MainWindow : Window
         PinToggle.IsChecked = S.AlwaysOnTop;
         PinIcon.Text = S.AlwaysOnTop ? "" : ""; // pinned / pin glyphs
         PinToggle.ToolTip = S.AlwaysOnTop ? "Always on top: on" : "Always on top: off";
+        ValueGrabToggle.Visibility = S.ShowValueGrabButton ? Visibility.Visible : Visibility.Collapsed;
+        ValueGrabToggle.IsChecked = S.ValueGrabEnabled;
+        ValueGrabLabel.Text = S.ValueGrabEnabled ? "Value Grab on" : "Value Grab";
+        ValueGrabToggle.ToolTip = S.ValueGrabEnabled
+            ? $"Value Grab is on: {S.GetHotkey(HotkeyAction.CopyValue).ToDisplayString()} copies the line's {(S.ValueGrabMode == ValueGrabMode.Amount ? "amount" : "cells")}. Click to turn off."
+            : "Value Grab: show the line's dollar amount beside the band and copy it with a hotkey";
         LinesText.Text = S.LinesInView.ToString();
         StepText.Text = S.EffectiveStep.ToString();
 
@@ -541,12 +558,182 @@ public partial class MainWindow : Window
             Band.Visibility = Grip.Visibility = DimPath.Visibility = Visibility.Collapsed;
             SetHandlesVisible(false);
             Region.Visibility = RegionLabel.Visibility = Visibility.Collapsed;
+            ClearValueChips();
             UpdateHud();
             return;
         }
         PositionBand(r);
         PositionRegion();
+        UpdateValueChips(r);
         UpdateHud();
+    }
+
+    // ───────────────────────────── Value Grab ─────────────────────────────
+
+    private GrabbedValue? Grab(TextRow row) => S.ValueGrabMode == ValueGrabMode.Row
+        ? ValueExtractor.Row(row, _nav?.SpanLeft, _nav?.SpanRight)
+        : ValueExtractor.Amount(row, _nav?.SpanLeft, _nav?.SpanRight);
+
+    /// <summary>Values on the lines inside the band, top to bottom (lines without one are skipped).</summary>
+    private List<(TextRow Row, GrabbedValue Value)> BandValues()
+    {
+        if (_nav == null)
+            return [];
+        var page = _nav.Document.Pages[PageIndex];
+        return _nav.BandStopRows()
+            .Select(i => (Row: page.Rows[i], Value: Grab(page.Rows[i])))
+            .Where(x => x.Value != null)
+            .Select(x => (x.Row, x.Value!))
+            .ToList();
+    }
+
+    private void ClearValueChips()
+    {
+        foreach (var chip in _bandChips)
+            Overlay.Children.Remove(chip);
+        _bandChips.Clear();
+        HudChips.Children.Clear();
+        HudChips.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Chips beside the band, one per line, level with that line. When there's no room on the
+    /// right (portrait, or a wide page) they move into the HUD pill instead.
+    /// </summary>
+    private void UpdateValueChips(Rect band)
+    {
+        ClearValueChips();
+        if (!S.ValueGrabEnabled || _nav == null)
+            return;
+        var values = BandValues();
+        if (values.Count == 0)
+            return;
+
+        const double chipRoom = 190;
+        var inHud = _portrait || band.Right + chipRoom > Workspace.ActualWidth;
+        var copyKey = S.GetHotkey(HotkeyAction.CopyValue).ToDisplayString();
+        for (var i = 0; i < values.Count; i++)
+        {
+            var (row, value) = values[i];
+            var chip = MakeChip(value, inHud, hint: i == 0 && !inHud ? copyKey : null);
+            if (inHud)
+            {
+                HudChips.Children.Add(chip);
+                continue;
+            }
+            if (ToWorkspace(new Rect(row.Left, row.Top, 1, row.Height)) is not { } rowRect)
+                continue;
+            Canvas.SetLeft(chip, band.Right + 10);
+            Canvas.SetTop(chip, rowRect.Top + rowRect.Height / 2 - 13);
+            Overlay.Children.Add(chip);
+            _bandChips.Add(chip);
+        }
+        if (inHud)
+        {
+            HudChips.Children.Add(new TextBlock
+            {
+                Text = copyKey,
+                FontSize = 11,
+                Foreground = (Brush)FindResource("HudMutedBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(2, 0, 0, 0),
+            });
+        }
+        HudChips.Visibility = inHud ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private Button MakeChip(GrabbedValue value, bool dark, string? hint)
+    {
+        var text = new TextBlock
+        {
+            Text = value.Display,
+            FontFamily = (FontFamily)FindResource("MonoFont"),
+            FontWeight = FontWeights.SemiBold,
+            MaxWidth = 260,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var icon = new TextBlock
+        {
+            Text = "\uE8C8", // copy glyph
+            FontFamily = (FontFamily)FindResource("IconFont"),
+            FontSize = 11,
+            Opacity = 0.7,
+            Margin = new Thickness(8, 1, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Children = { text, icon } };
+        if (hint != null)
+        {
+            content.Children.Add(new Border
+            {
+                Margin = new Thickness(10, 0, 0, 0),
+                Padding = new Thickness(5, 0, 5, 1),
+                CornerRadius = new CornerRadius(4),
+                BorderThickness = new Thickness(1),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0xC9, 0xCA, 0xCE)),
+                Background = new SolidColorBrush(Color.FromRgb(0xF6, 0xF6, 0xF7)),
+                Child = new TextBlock { Text = hint, FontSize = 11, Foreground = (Brush)FindResource("MutedTextBrush") },
+            });
+        }
+        var chip = new Button
+        {
+            Style = (Style)FindResource(dark ? "HudValueChip" : "ValueChip"),
+            Content = content,
+            ToolTip = "Click to copy " + (S.ValueGrabMode == ValueGrabMode.Row ? "this line as Excel columns" : value.Clipboard),
+            Margin = dark ? new Thickness(0, 0, 6, 0) : new Thickness(0),
+        };
+        chip.Click += (_, _) => CopyToClipboard([value]);
+        return chip;
+    }
+
+    private void CopyValues(bool all)
+    {
+        if (!S.ValueGrabEnabled || _nav == null)
+            return;
+        var values = BandValues();
+        if (values.Count == 0)
+        {
+            ShowToast(S.ValueGrabMode == ValueGrabMode.Amount ? "No dollar amount on this line" : "Nothing to copy on this line", seconds: 1.5);
+            return;
+        }
+        CopyToClipboard(all ? values.Select(v => v.Value).ToList() : [values[0].Value]);
+    }
+
+    private void CopyToClipboard(IReadOnlyList<GrabbedValue> values)
+    {
+        // One value per line, so several amounts paste down an Excel column.
+        var text = string.Join("\r\n", values.Select(v => v.Clipboard));
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                Clipboard.SetText(text);
+                break;
+            }
+            catch (System.Runtime.InteropServices.COMException) when (attempt < 4)
+            {
+                Thread.Sleep(40); // another app is holding the clipboard open
+            }
+            catch (System.Runtime.InteropServices.COMException)
+            {
+                ShowToast("Couldn't copy: another app is using the clipboard. Try again.", seconds: 2);
+                return;
+            }
+        }
+
+        var shown = values.Count == 1 ? values[0].Display : $"{values.Count} values";
+        var ocr = _nav?.Document.Pages[PageIndex].Source == RowSource.Ocr ? " (read by OCR: check it)" : "";
+        ShowToast($"Copied {shown}{ocr}", seconds: 1.6);
+    }
+
+    private void ValueGrabToggle_Click(object sender, RoutedEventArgs e)
+    {
+        S.ValueGrabEnabled = ValueGrabToggle.IsChecked == true;
+        _store.Save();
+        ShowToast(S.ValueGrabEnabled
+            ? $"Value Grab on: {S.GetHotkey(HotkeyAction.CopyValue).ToDisplayString()} copies the top line, {S.GetHotkey(HotkeyAction.CopyAllValues).ToDisplayString()} copies every line in the band."
+            : "Value Grab off", seconds: S.ValueGrabEnabled ? 5 : 1.5);
     }
 
     private void PositionBand(Rect r)
@@ -735,6 +922,7 @@ public partial class MainWindow : Window
             return;
         }
         _drag = HitZone(e.GetPosition(Band));
+        ClearValueChips(); // they'd be left behind while the band moves
         _dragStart = e.GetPosition(Workspace);
         _dragOrigin = new Rect(Canvas.GetLeft(Band), Canvas.GetTop(Band), Band.Width, Band.Height);
         Band.CaptureMouse();
@@ -877,6 +1065,8 @@ public partial class MainWindow : Window
             case HotkeyAction.PreviousPage: GoToPage(PageIndex - 1); break;
             case HotkeyAction.ToggleDim: ToggleDim(); break;
             case HotkeyAction.ToggleAlwaysOnTop: SetAlwaysOnTop(!S.AlwaysOnTop); break;
+            case HotkeyAction.CopyValue: CopyValues(all: false); break;
+            case HotkeyAction.CopyAllValues: CopyValues(all: true); break;
         }
     }
 

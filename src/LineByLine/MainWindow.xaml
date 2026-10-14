@@ -64,7 +64,15 @@
                         </StackPanel>
                     </Border>
 
-                    <ToggleButton x:Name="PinToggle" Style="{StaticResource IconButton}" Margin="8,0,0,0" VerticalAlignment="Center"
+                    <ToggleButton x:Name="ValueGrabToggle" Style="{StaticResource IconButton}" Width="Auto" Margin="8,0,0,0" VerticalAlignment="Center"
+                                  Click="ValueGrabToggle_Click" WindowChrome.IsHitTestVisibleInChrome="True">
+                        <StackPanel Orientation="Horizontal" Margin="10,0">
+                            <TextBlock Text="$" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                            <TextBlock x:Name="ValueGrabLabel" Text="Value Grab" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+
+                    <ToggleButton x:Name="PinToggle" Style="{StaticResource IconButton}" Margin="4,0,0,0" VerticalAlignment="Center"
                                   Click="PinToggle_Click" ToolTip="Always on top" WindowChrome.IsHitTestVisibleInChrome="True">
                         <TextBlock x:Name="PinIcon" Text="&#xE718;" FontFamily="{StaticResource IconFont}" FontSize="15"/>
                     </ToggleButton>
@@ -181,6 +189,7 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock x:Name="HudLines" Foreground="{StaticResource HudTextBrush}" FontSize="12" VerticalAlignment="Center"/>
                         <Border x:Name="HudSeparator" Width="1" Height="16" Background="#3A3B40" Margin="12,0"/>
+                        <StackPanel x:Name="HudChips" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed" Margin="0,0,10,0"/>
                         <Button x:Name="ColumnChip" Click="ColumnChip_Click" Visibility="Collapsed" Margin="0,0,10,0" Cursor="Hand" Focusable="False"
                                 ToolTip="Back to full-width lines (Esc)">
                             <Button.Template>

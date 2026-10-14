@@ -23,6 +23,7 @@
 
     <FontFamily x:Key="UiFont">Segoe UI Variable Text, Segoe UI</FontFamily>
     <!-- Windows 11 icon font, with the Windows 10 equivalent (same code points) as fallback -->
+    <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas</FontFamily>
     <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
     <Style TargetType="ToolTip">
@@ -247,6 +248,41 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- Value Grab chips: beside the band (light) and in the HUD pill (dark) -->
+    <Style x:Key="ValueChip" TargetType="Button">
+        <Setter Property="Height" Value="26"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#D6D7DB"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1" CornerRadius="13" Padding="10,0,8,0">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="8" ShadowDepth="2" Direction="270" Opacity="0.25"/>
+                        </Border.Effect>
+                        <ContentPresenter VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HudValueChip" TargetType="Button" BasedOn="{StaticResource ValueChip}">
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="Foreground" Value="{StaticResource HudTextBrush}"/>
+        <Setter Property="Background" Value="{StaticResource HudButtonBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource HudButtonBrush}"/>
     </Style>
 
     <!-- Cards on settings pages -->

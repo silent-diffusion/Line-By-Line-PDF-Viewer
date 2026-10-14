@@ -17,6 +17,7 @@
                 <StackPanel>
                     <RadioButton x:Name="NavBand" Content="Focus band" Style="{StaticResource NavItem}" GroupName="Nav" IsChecked="True" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavHotkeys" Content="Hotkeys" Style="{StaticResource NavItem}" GroupName="Nav" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavValueGrab" Content="Value Grab" Style="{StaticResource NavItem}" GroupName="Nav" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavWindow" Content="Window" Style="{StaticResource NavItem}" GroupName="Nav" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavUpdates" Content="Updates" Style="{StaticResource NavItem}" GroupName="Nav" Checked="Nav_Checked"/>
                 </StackPanel>
@@ -105,6 +106,45 @@
                         <TextBlock TextWrapping="Wrap" Foreground="{StaticResource SubtleTextBrush}" VerticalAlignment="Center" Margin="2,0,16,0"
                                    Text="Some Intel graphics drivers use Ctrl+Alt+arrows to rotate the screen. If the band doesn't move, turn those off in the Intel control panel or pick different keys here."/>
                     </DockPanel>
+                </StackPanel>
+
+                <!-- Value Grab -->
+                <StackPanel x:Name="ValueGrabPage" Visibility="Collapsed">
+                    <TextBlock Text="Value Grab" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,16"
+                               Text="Shows each highlighted line's dollar amount beside the band, so you can copy it into Excel with one keypress instead of retyping it. Still check it against the page."/>
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <CheckBox x:Name="ValueGrabSwitch" DockPanel.Dock="Right" Style="{StaticResource Switch}" VerticalAlignment="Center"
+                                      Checked="ValueGrabSwitch_Changed" Unchecked="ValueGrabSwitch_Changed" AutomationProperties.Name="Value Grab"/>
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock Text="Value Grab" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="ValueGrabHint" Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="What to copy" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <RadioButton x:Name="ModeAmount" GroupName="Mode" Margin="0,0,0,6" Checked="Mode_Checked"
+                                         Content="Dollar amount only: the line total as a plain number, e.g. 1825.59"/>
+                            <RadioButton x:Name="ModeRow" GroupName="Mode" Checked="Mode_Checked"
+                                         Content="Whole line, split into Excel columns (item, description, qty, unit, amount)"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource SubtleTextBrush}" Margin="0,10,0,0"
+                                       Text="With column focus on, only the focused columns are used."/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <CheckBox x:Name="ValueGrabButtonSwitch" DockPanel.Dock="Right" Style="{StaticResource Switch}" VerticalAlignment="Center"
+                                      Checked="ValueGrabButtonSwitch_Changed" Unchecked="ValueGrabButtonSwitch_Changed" AutomationProperties.Name="Show Value Grab button"/>
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock Text="Show the Value Grab button in the toolbar" FontWeight="SemiBold"/>
+                                <TextBlock Text="Turn off to keep Value Grab out of sight entirely; you can still switch it on here."
+                                           Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- Window -->

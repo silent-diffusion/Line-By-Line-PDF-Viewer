@@ -3,7 +3,7 @@
 A lightweight Windows PDF viewer for **line-by-line data entry**. It spotlights one or more lines of an invoice (or any document), dims the rest of the page, and lets you step to the next line with a global hotkey, without leaving Excel.
 
 > Repo: https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer
-> Status: **v0.3**: v0.2 plus OCR for scanned PDFs and images
+> Status: **v0.4**: v0.3 plus Value Grab
 
 ---
 
@@ -53,17 +53,21 @@ All rebindable in Settings.
 | Previous line(s) | `Ctrl+Alt+Up` |
 | Next / previous page | `Ctrl+Alt+PgDn` / `Ctrl+Alt+PgUp` |
 | Toggle dimming | `Ctrl+Alt+D` |
-| Copy value (when Value Grab is on) | `Ctrl+Alt+C` |
+| Copy value of the top line (Value Grab on) | `Ctrl+Alt+C` |
+| Copy values of every line in the band (Value Grab on) | `Ctrl+Alt+Shift+C` |
 | Toggle always-on-top | `Ctrl+Alt+T` |
 
 > Note: some Intel graphics drivers use `Ctrl+Alt+Arrow` to rotate the screen. If that happens, turn off the driver hotkeys or rebind them in Line by Line.
 
 ### Value Grab (optional, off by default)
-- Detects **dollar amounts** inside the focus band and shows them as small chips next to it.
-- The hotkey copies the amount to the clipboard so you can paste it straight into Excel.
-- **Default output: dollar amount only.** Optional mode: copy the whole row as tab-separated values, which fill across Excel columns when pasted.
-- Can be **fully disabled** in Settings, which removes the chips and the hotkey.
-- On scanned documents OCR can misread digits, so always check visually.
+- Turn it on with the **$ Value Grab** button in the toolbar or in Settings → Value Grab.
+- Finds each highlighted line's **dollar amount**: the rightmost money value on the line, so the line total rather than the unit price. Quantities, SKUs and dates are ignored. With column focus on, only the focused columns are used, e.g. focus on the Unit column to grab unit prices.
+- Shows the amounts as chips beside the band, or in the bottom bar when there's no room beside it (portrait, wide pages). Click a chip to copy it.
+- `Ctrl+Alt+C` copies the top line's amount; `Ctrl+Alt+Shift+C` copies every line in the band, one per row, so they paste down an Excel column.
+- Amounts are copied as plain numbers Excel reads correctly: `$1,825.59` → `1825.59`, `(45.00)` and `45.00 CR` → `-45.00`.
+- **Default: dollar amount only.** Optional mode copies the whole line as tab-separated cells, which fill across Excel columns when pasted.
+- **Fully off when disabled:** no chips, and the copy hotkeys aren't even registered, so other apps can use them. The toolbar button can be hidden too.
+- On pages read by OCR, the "Copied" message reminds you to check the digits.
 
 ### Window
 - **Always on top**: toggle in Settings (default: off).
@@ -131,7 +135,7 @@ Target: Windows 10/11, x64.
 - **v0.1** ✅: open PDF, focus band (lines in view, step size, dim), global hotkeys, settings, click/drag to place the band, resume position, landscape/portrait layouts
 - **v0.2** ✅: resize the band on all edges; column focus (narrow the band and it steps only through lines with the same column layout, across pages); remembered per file
 - **v0.3** ✅: OCR for scanned PDFs and images (PNG, JPG, TIFF incl. multi-page, BMP), with a Settings switch
-- **v0.4**: Value Grab (dollar amount default, row mode, full disable)
+- **v0.4** ✅: Value Grab (dollar amount default, whole-row mode, copy one or all lines, full disable, toolbar button can be hidden)
 - **v0.5**: installer, Settings → Updates, auto-update via GitHub Releases
 - **Later**: batch / multi-file queue, code signing
 

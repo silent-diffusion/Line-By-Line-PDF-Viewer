@@ -23,6 +23,15 @@ public sealed class WindowPlacement
     public bool Maximized { get; set; }
 }
 
+public enum ValueGrabMode
+{
+    /// <summary>Just the line's dollar amount, as a plain number.</summary>
+    Amount,
+
+    /// <summary>The whole line, tab-separated so it fills Excel columns.</summary>
+    Row,
+}
+
 public sealed class AppSettings
 {
     public int LinesInView { get; set; } = 2;
@@ -36,6 +45,11 @@ public sealed class AppSettings
 
     /// <summary>Read scanned pages and images with Windows OCR.</summary>
     public bool OcrEnabled { get; set; } = true;
+
+    /// <summary>Value Grab: amount chips beside the band and copy hotkeys. Off by default.</summary>
+    public bool ValueGrabEnabled { get; set; }
+    public ValueGrabMode ValueGrabMode { get; set; } = ValueGrabMode.Amount;
+    public bool ShowValueGrabButton { get; set; } = true;
     public Dictionary<string, string> Hotkeys { get; set; } = new();
     public Dictionary<string, FilePosition> Positions { get; set; } = new();
     public WindowPlacement? Window { get; set; }

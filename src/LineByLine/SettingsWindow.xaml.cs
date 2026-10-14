@@ -50,6 +50,13 @@ public partial class SettingsWindow : Window
         OcrDescription.Text = OcrReader.IsAvailable
             ? $"Finds the lines in scanned PDFs and images (PNG, JPG, TIFF) with the OCR built into Windows, offline. Language: {OcrReader.LanguageName}."
             : "Windows OCR isn't available on this PC. Adding a language in Windows Settings → Time & language installs it.";
+        ValueGrabSwitch.IsChecked = S.ValueGrabEnabled;
+        ModeAmount.IsChecked = S.ValueGrabMode == ValueGrabMode.Amount;
+        ModeRow.IsChecked = S.ValueGrabMode == ValueGrabMode.Row;
+        ValueGrabButtonSwitch.IsChecked = S.ShowValueGrabButton;
+        ValueGrabHint.Text = S.ValueGrabEnabled
+            ? $"On. {S.GetHotkey(HotkeyAction.CopyValue).ToDisplayString()} copies the top line's value; {S.GetHotkey(HotkeyAction.CopyAllValues).ToDisplayString()} copies every line in the band, one per row. You can also click a chip."
+            : "Off. No chips, and the copy hotkeys aren't registered, so they're free for other apps.";
         RefreshHotkeyRows();
         _loading = false;
     }
@@ -60,6 +67,7 @@ public partial class SettingsWindow : Window
             return; // fires during InitializeComponent
         BandPage.Visibility = NavBand.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         HotkeysPage.Visibility = NavHotkeys.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        ValueGrabPage.Visibility = NavValueGrab.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         WindowPage.Visibility = NavWindow.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         UpdatesPage.Visibility = NavUpdates.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -105,6 +113,32 @@ public partial class SettingsWindow : Window
         if (_loading)
             return;
         S.OcrEnabled = OcrSwitch.IsChecked == true;
+        _store.Save();
+    }
+
+    // ───────────────────────────── value grab ─────────────────────────────
+
+    private void ValueGrabSwitch_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        S.ValueGrabEnabled = ValueGrabSwitch.IsChecked == true;
+        _store.Save();
+    }
+
+    private void Mode_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_loading || ModeRow == null)
+            return;
+        S.ValueGrabMode = ModeRow.IsChecked == true ? ValueGrabMode.Row : ValueGrabMode.Amount;
+        _store.Save();
+    }
+
+    private void ValueGrabButtonSwitch_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        S.ShowValueGrabButton = ValueGrabButtonSwitch.IsChecked == true;
         _store.Save();
     }
 
@@ -183,7 +217,7 @@ public partial class SettingsWindow : Window
         {
             if (!box.IsKeyboardFocused)
                 box.Text = S.GetHotkey(action).ToDisplayString();
-            var isFailed = failed.Contains(action);
+            var isFailed = failed.Contains(action) && (S.ValueGrabEnabled || !Hotkey.IsValueGrabAction(action));
             status.Text = isFailed ? "Windows wouldn't register this. Another app may be using it." : "";
             status.Visibility = isFailed ? Visibility.Visible : Visibility.Collapsed;
         }

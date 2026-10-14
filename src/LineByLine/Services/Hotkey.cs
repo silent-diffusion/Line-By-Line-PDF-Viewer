@@ -10,6 +10,8 @@ public enum HotkeyAction
     PreviousPage,
     ToggleDim,
     ToggleAlwaysOnTop,
+    CopyValue,
+    CopyAllValues,
 }
 
 /// <summary>A key plus modifiers, stored in settings as text like "Ctrl+Alt+Down".</summary>
@@ -23,7 +25,13 @@ public readonly record struct Hotkey(ModifierKeys Modifiers, Key Key)
         [HotkeyAction.PreviousPage] = new(ModifierKeys.Control | ModifierKeys.Alt, Key.PageUp),
         [HotkeyAction.ToggleDim] = new(ModifierKeys.Control | ModifierKeys.Alt, Key.D),
         [HotkeyAction.ToggleAlwaysOnTop] = new(ModifierKeys.Control | ModifierKeys.Alt, Key.T),
+        [HotkeyAction.CopyValue] = new(ModifierKeys.Control | ModifierKeys.Alt, Key.C),
+        [HotkeyAction.CopyAllValues] = new(ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Shift, Key.C),
     };
+
+    /// <summary>Hotkeys that only exist while Value Grab is on.</summary>
+    public static bool IsValueGrabAction(HotkeyAction action) =>
+        action is HotkeyAction.CopyValue or HotkeyAction.CopyAllValues;
 
     public static string Describe(HotkeyAction action) => action switch
     {
@@ -33,6 +41,8 @@ public readonly record struct Hotkey(ModifierKeys Modifiers, Key Key)
         HotkeyAction.PreviousPage => "Previous page",
         HotkeyAction.ToggleDim => "Toggle dimming",
         HotkeyAction.ToggleAlwaysOnTop => "Toggle always on top",
+        HotkeyAction.CopyValue => "Copy value (top line)",
+        HotkeyAction.CopyAllValues => "Copy values (all lines in band)",
         _ => action.ToString(),
     };
 
