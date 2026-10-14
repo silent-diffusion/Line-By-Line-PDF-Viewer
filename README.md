@@ -3,7 +3,7 @@
 A lightweight Windows PDF viewer for **line-by-line data entry**. It spotlights one or more lines of an invoice (or any document), dims the rest of the page, and lets you step to the next line with a global hotkey, without leaving Excel.
 
 > Repo: https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer
-> Status: **v0.5**: installer and in-app updates. [Download the latest release](https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer/releases/latest)
+> Status: **v0.6**: auto grab and smarter value picking. Installer and in-app updates since v0.5. [Download the latest release](https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer/releases/latest)
 
 ---
 
@@ -61,7 +61,9 @@ All rebindable in Settings.
 
 ### Value Grab (optional, off by default)
 - Turn it on with the **$ Value Grab** button in the toolbar or in Settings → Value Grab.
-- Finds each highlighted line's **dollar amount**: the rightmost money value on the line, so the line total rather than the unit price. Quantities, SKUs and dates are ignored. With column focus on, only the focused columns are used, e.g. focus on the Unit column to grab unit prices.
+- Finds each highlighted line's **value**. By default that's the **rightmost value on the line**, which is usually the line total. Percentages, dates and codes like `PA-2011` are skipped. Alternatively, **rightmost dollar amount** only takes numbers written as money (`12.50`, `$1,825`), skipping quantities. With column focus on, only the focused columns are used, e.g. focus on the Unit column to grab unit prices.
+- Repairs common OCR slips before reading a number: `425. 00`, `1, 825.59`, `$ 9.99`, `1O5.5O`, `l2.00`, `425.00.`.
+- **Auto grab** (Settings → Value Grab): copies automatically every time the band moves, either the top line or every line in the band. If a line has no value, a message says so and the clipboard is left alone.
 - Shows the amounts as chips beside the band, or in the bottom bar when there's no room beside it (portrait, wide pages). Click a chip to copy it.
 - `Ctrl+Alt+C` copies the top line's amount; `Ctrl+Alt+Shift+C` copies every line in the band, one per row, so they paste down an Excel column.
 - Amounts are copied as plain numbers Excel reads correctly: `$1,825.59` → `1825.59`, `(45.00)` and `45.00 CR` → `-45.00`.
@@ -154,6 +156,7 @@ Target: Windows 10/11, x64.
 - **v0.3** ✅: OCR for scanned PDFs and images (PNG, JPG, TIFF incl. multi-page, BMP), with a Settings switch
 - **v0.4** ✅: Value Grab (dollar amount default, whole-row mode, copy one or all lines, full disable, toolbar button can be hidden)
 - **v0.5** ✅: one-click installer, Settings → Updates (check, release notes, update & restart), automatic updates, app icon
+- **v0.6** ✅: auto grab; rightmost-value pick (default) or rightmost dollar amount; OCR number repair
 - **Later**: batch / multi-file queue, code signing
 
 ## License

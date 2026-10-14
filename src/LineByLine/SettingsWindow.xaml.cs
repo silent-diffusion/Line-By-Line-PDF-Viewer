@@ -56,6 +56,14 @@ public partial class SettingsWindow : Window
         ModeAmount.IsChecked = S.ValueGrabMode == ValueGrabMode.Amount;
         ModeRow.IsChecked = S.ValueGrabMode == ValueGrabMode.Row;
         ValueGrabButtonSwitch.IsChecked = S.ShowValueGrabButton;
+        PickRightmost.IsChecked = S.ValuePick == ValuePick.RightmostValue;
+        PickMoney.IsChecked = S.ValuePick == ValuePick.RightmostMoney;
+        PickPanel.IsEnabled = S.ValueGrabMode == ValueGrabMode.Amount;
+        AutoGrabSwitch.IsChecked = S.AutoGrab;
+        AutoGrabSwitch.IsEnabled = S.ValueGrabEnabled;
+        AutoGrabTop.IsChecked = !S.AutoGrabAllLines;
+        AutoGrabAll.IsChecked = S.AutoGrabAllLines;
+        AutoGrabScopePanel.IsEnabled = S.ValueGrabEnabled && S.AutoGrab;
         ValueGrabHint.Text = S.ValueGrabEnabled
             ? $"On. {S.GetHotkey(HotkeyAction.CopyValue).ToDisplayString()} copies the top line's value; {S.GetHotkey(HotkeyAction.CopyAllValues).ToDisplayString()} copies every line in the band, one per row. You can also click a chip."
             : "Off. No chips, and the copy hotkeys aren't registered, so they're free for other apps.";
@@ -133,6 +141,30 @@ public partial class SettingsWindow : Window
         if (_loading || ModeRow == null)
             return;
         S.ValueGrabMode = ModeRow.IsChecked == true ? ValueGrabMode.Row : ValueGrabMode.Amount;
+        _store.Save();
+    }
+
+    private void Pick_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_loading || PickMoney == null)
+            return;
+        S.ValuePick = PickMoney.IsChecked == true ? ValuePick.RightmostMoney : ValuePick.RightmostValue;
+        _store.Save();
+    }
+
+    private void AutoGrabSwitch_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        S.AutoGrab = AutoGrabSwitch.IsChecked == true;
+        _store.Save();
+    }
+
+    private void AutoScope_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_loading || AutoGrabAll == null)
+            return;
+        S.AutoGrabAllLines = AutoGrabAll.IsChecked == true;
         _store.Save();
     }
 

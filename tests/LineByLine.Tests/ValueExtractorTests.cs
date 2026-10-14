@@ -62,10 +62,57 @@ public class ValueExtractorTests
     }
 
     [Fact]
-    public void Amount_IsNullForLinesWithoutMoney()
+    public void Amount_IsNullForLinesWithoutAValue()
     {
-        Assert.Null(ValueExtractor.Amount(RowWith(0, "500 labels per roll")));
         Assert.Null(ValueExtractor.Amount(RowWith(0, "BILL TO")));
+        // "500 labels per roll" has a number but no money: only the strict pick skips it.
+        Assert.Null(ValueExtractor.Amount(RowWith(0, "500 labels per roll"), pick: ValuePick.RightmostMoney));
+        Assert.Equal("500", ValueExtractor.Amount(RowWith(0, "500 labels per roll"))?.Clipboard);
+    }
+
+    private static TextRow OcrLine(params (double Left, double Right, string Text)[] cells) =>
+        new(cells[0].Left, 100, cells[^1].Right, 110, string.Join(" ", cells.Select(c => c.Text)))
+        {
+            Cells = cells.Select(c => TextCell.Create(c.Left, c.Right, c.Text)).ToList(),
+        };
+
+    [Theory]
+    [InlineData("425. 00", "425.00")]     // stray space after the point
+    [InlineData("1, 825.59", "1825.59")]  // stray space after the comma
+    [InlineData("$ 1,825.59", "1825.59")] // currency sign split off
+    [InlineData("1O5.5O", "105.50")]      // letter O read for zero
+    [InlineData("l2.00", "12.00")]        // letter l read for one
+    [InlineData("425.00.", "425.00")]     // trailing speck
+    [InlineData("120.00 CR", "-120.00")]
+    public void Amount_RepairsOcrNumbers(string ocrAmount, string expected)
+    {
+        // Qty 4, unit 89.99 in the middle, mangled total on the right: the total must win.
+        var line = OcrLine((54, 200, "Toner cartridge"), (395, 400, "4"), (447, 475, "89.99"), (520, 560, ocrAmount));
+
+        Assert.Equal(expected, ValueExtractor.Amount(line)?.Clipboard);
+        Assert.Equal(expected, ValueExtractor.Amount(line, pick: ValuePick.RightmostMoney)?.Clipboard);
+    }
+
+    [Fact]
+    public void RightmostValue_TakesTheRightmostNumber_EvenWithoutCents()
+    {
+        // A total OCR'd as "1825" (decimal point lost) is still the rightmost value; the strict
+        // money pick would fall back to the unit price in the middle.
+        var line = OcrLine((54, 200, "Widget"), (395, 400, "2"), (447, 475, "912.50"), (520, 560, "1825"));
+
+        Assert.Equal("1825", ValueExtractor.Amount(line)?.Clipboard);
+        Assert.Equal("912.50", ValueExtractor.Amount(line, pick: ValuePick.RightmostMoney)?.Clipboard);
+    }
+
+    [Theory]
+    [InlineData("7%")]
+    [InlineData("10/02/2026")]
+    [InlineData("PA-2011")]
+    [InlineData("INV-20418")]
+    public void RightmostValue_SkipsPercentagesDatesAndCodes(string rightmost)
+    {
+        var line = OcrLine((54, 200, "Item"), (447, 475, "89.99"), (520, 560, rightmost));
+        Assert.Equal("89.99", ValueExtractor.Amount(line)?.Clipboard);
     }
 
     [Fact]

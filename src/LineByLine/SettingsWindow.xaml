@@ -127,11 +127,37 @@
                         <StackPanel>
                             <TextBlock Text="What to copy" FontWeight="SemiBold" Margin="0,0,0,8"/>
                             <RadioButton x:Name="ModeAmount" GroupName="Mode" Margin="0,0,0,6" Checked="Mode_Checked"
-                                         Content="Dollar amount only: the line total as a plain number, e.g. 1825.59"/>
+                                         Content="The line's value only, as a plain number, e.g. 1825.59"/>
+                            <StackPanel x:Name="PickPanel" Margin="24,2,0,8">
+                                <RadioButton x:Name="PickRightmost" GroupName="Pick" Margin="0,0,0,4" Checked="Pick_Checked">
+                                    <TextBlock TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Rightmost value on the line"/><Run Text=" (recommended): whatever number sits furthest right, usually the line total. Most reliable on scans."/></TextBlock>
+                                </RadioButton>
+                                <RadioButton x:Name="PickMoney" GroupName="Pick" Checked="Pick_Checked">
+                                    <TextBlock TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Rightmost dollar amount"/><Run Text=": only numbers written as money (12.50, $1,825), skipping quantities and codes."/></TextBlock>
+                                </RadioButton>
+                            </StackPanel>
                             <RadioButton x:Name="ModeRow" GroupName="Mode" Checked="Mode_Checked"
                                          Content="Whole line, split into Excel columns (item, description, qty, unit, amount)"/>
                             <TextBlock TextWrapping="Wrap" Foreground="{StaticResource SubtleTextBrush}" Margin="0,10,0,0"
                                        Text="With column focus on, only the focused columns are used."/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <DockPanel>
+                                <CheckBox x:Name="AutoGrabSwitch" DockPanel.Dock="Right" Style="{StaticResource Switch}" VerticalAlignment="Center"
+                                          Checked="AutoGrabSwitch_Changed" Unchecked="AutoGrabSwitch_Changed" AutomationProperties.Name="Auto grab"/>
+                                <StackPanel Margin="0,0,16,0">
+                                    <TextBlock Text="Auto grab" FontWeight="SemiBold"/>
+                                    <TextBlock Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                               Text="Copy automatically every time the band moves. Press Ctrl+Alt+↓, switch to Excel, paste. If a line has no value, you're told and the clipboard is left alone."/>
+                                </StackPanel>
+                            </DockPanel>
+                            <StackPanel x:Name="AutoGrabScopePanel" Orientation="Horizontal" Margin="0,10,0,0">
+                                <TextBlock Text="Copies:" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                <RadioButton x:Name="AutoGrabTop" GroupName="AutoScope" Content="Top line" Margin="0,0,16,0" Checked="AutoScope_Checked"/>
+                                <RadioButton x:Name="AutoGrabAll" GroupName="AutoScope" Content="Every line in the band" Checked="AutoScope_Checked"/>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}">

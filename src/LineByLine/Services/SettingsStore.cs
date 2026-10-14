@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using LineByLine.Documents;
 
 namespace LineByLine.Services;
 
@@ -50,6 +51,15 @@ public sealed class AppSettings
     public bool ValueGrabEnabled { get; set; }
     public ValueGrabMode ValueGrabMode { get; set; } = ValueGrabMode.Amount;
     public bool ShowValueGrabButton { get; set; } = true;
+
+    /// <summary>Which number counts as the line's value.</summary>
+    public ValuePick ValuePick { get; set; } = ValuePick.RightmostValue;
+
+    /// <summary>Copy automatically every time the band moves, so moving is all it takes.</summary>
+    public bool AutoGrab { get; set; }
+
+    /// <summary>Auto grab copies every line in the band instead of just the top one.</summary>
+    public bool AutoGrabAllLines { get; set; }
 
     /// <summary>Check GitHub on every start and install new versions automatically.</summary>
     public bool AutoUpdate { get; set; }

@@ -167,7 +167,7 @@ public partial class MainWindow : Window
         PinToggle.ToolTip = S.AlwaysOnTop ? "Always on top: on" : "Always on top: off";
         ValueGrabToggle.Visibility = S.ShowValueGrabButton ? Visibility.Visible : Visibility.Collapsed;
         ValueGrabToggle.IsChecked = S.ValueGrabEnabled;
-        ValueGrabLabel.Text = S.ValueGrabEnabled ? "Value Grab on" : "Value Grab";
+        ValueGrabLabel.Text = !S.ValueGrabEnabled ? "Value Grab" : S.AutoGrab ? "Auto grab on" : "Value Grab on";
         ValueGrabToggle.ToolTip = S.ValueGrabEnabled
             ? $"Value Grab is on: {S.GetHotkey(HotkeyAction.CopyValue).ToDisplayString()} copies the line's {(S.ValueGrabMode == ValueGrabMode.Amount ? "amount" : "cells")}. Click to turn off."
             : "Value Grab: show the line's dollar amount beside the band and copy it with a hotkey";
@@ -527,6 +527,21 @@ public partial class MainWindow : Window
         UpdatePageIndicators();
         EnsureBandVisible(animate: true);
         SavePosition();
+        if (S.ValueGrabEnabled && S.AutoGrab)
+            AutoGrab();
+    }
+
+    /// <summary>Auto grab: copy as soon as the band lands, so switching to Excel and pasting is all that's left.</summary>
+    private void AutoGrab()
+    {
+        var values = BandValues();
+        if (values.Count == 0)
+        {
+            // Say so: otherwise the next paste would silently repeat the previous line's value.
+            ShowToast("No value on this line. Clipboard not changed.", seconds: 2);
+            return;
+        }
+        CopyToClipboard(S.AutoGrabAllLines ? values.Select(v => v.Value).ToList() : [values[0].Value]);
     }
 
     private void PlaceBandAt(PageView view, Point pointInImage)
@@ -606,7 +621,7 @@ public partial class MainWindow : Window
 
     private GrabbedValue? Grab(TextRow row) => S.ValueGrabMode == ValueGrabMode.Row
         ? ValueExtractor.Row(row, _nav?.SpanLeft, _nav?.SpanRight)
-        : ValueExtractor.Amount(row, _nav?.SpanLeft, _nav?.SpanRight);
+        : ValueExtractor.Amount(row, _nav?.SpanLeft, _nav?.SpanRight, S.ValuePick);
 
     /// <summary>Values on the lines inside the band, top to bottom (lines without one are skipped).</summary>
     private List<(TextRow Row, GrabbedValue Value)> BandValues()
