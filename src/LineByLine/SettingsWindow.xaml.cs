@@ -1,0 +1,247 @@
+using System.Reflection;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using LineByLine.Services;
+
+namespace LineByLine;
+
+public partial class SettingsWindow : Window
+{
+    private readonly SettingsStore _store;
+    private readonly MainWindow _main;
+    private readonly Dictionary<HotkeyAction, (TextBox Box, TextBlock Status)> _hotkeyRows = new();
+    private bool _loading;
+
+    private AppSettings S => _store.Settings;
+
+    public SettingsWindow(SettingsStore store, MainWindow main)
+    {
+        _store = store;
+        _main = main;
+        InitializeComponent();
+
+        var version = Assembly.GetExecutingAssembly().GetName().Version;
+        var versionText = version == null ? "" : $"{version.Major}.{version.Minor}.{version.Build}";
+        VersionText.Text = $"Line by Line v{versionText}";
+        InstalledVersionText.Text = $"Installed version {versionText}";
+
+        BuildHotkeyRows();
+        Refresh();
+        _store.Changed += Refresh;
+        Closed += (_, _) => _store.Changed -= Refresh;
+    }
+
+    private void Refresh()
+    {
+        _loading = true;
+        LinesValue.Text = S.LinesInView.ToString();
+        StepValue.Text = S.EffectiveStep.ToString();
+        StepMatchesLines.IsChecked = S.StepSize == 0;
+        StepMinusButton.IsEnabled = StepPlusButton.IsEnabled = S.StepSize != 0;
+        DimSlider.Value = S.DimOpacity;
+        DimValue.Text = $"{Math.Round(S.DimOpacity * 100)}%";
+        TopmostSwitch.IsChecked = S.AlwaysOnTop;
+        RememberSwitch.IsChecked = S.RememberPosition;
+        RefreshHotkeyRows();
+        _loading = false;
+    }
+
+    private void Nav_Checked(object sender, RoutedEventArgs e)
+    {
+        if (BandPage == null)
+            return; // fires during InitializeComponent
+        BandPage.Visibility = NavBand.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        HotkeysPage.Visibility = NavHotkeys.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        WindowPage.Visibility = NavWindow.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        UpdatesPage.Visibility = NavUpdates.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // ───────────────────────────── focus band ─────────────────────────────
+
+    private void LinesMinus_Click(object sender, RoutedEventArgs e) => SetLines(S.LinesInView - 1);
+    private void LinesPlus_Click(object sender, RoutedEventArgs e) => SetLines(S.LinesInView + 1);
+
+    private void SetLines(int value)
+    {
+        S.LinesInView = Math.Clamp(value, 1, 10);
+        _store.Save();
+    }
+
+    private void StepMinus_Click(object sender, RoutedEventArgs e) => SetStep(S.EffectiveStep - 1);
+    private void StepPlus_Click(object sender, RoutedEventArgs e) => SetStep(S.EffectiveStep + 1);
+
+    private void SetStep(int value)
+    {
+        S.StepSize = Math.Clamp(value, 1, 10);
+        _store.Save();
+    }
+
+    private void StepMatches_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        S.StepSize = StepMatchesLines.IsChecked == true ? 0 : S.LinesInView;
+        _store.Save();
+    }
+
+    private void DimSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || DimValue == null)
+            return;
+        S.DimOpacity = Math.Round(e.NewValue, 2);
+        _store.Save();
+    }
+
+    // ───────────────────────────── window ─────────────────────────────
+
+    private void TopmostSwitch_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        S.AlwaysOnTop = TopmostSwitch.IsChecked == true;
+        _store.Save();
+    }
+
+    private void RememberSwitch_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        S.RememberPosition = RememberSwitch.IsChecked == true;
+        if (!S.RememberPosition)
+            S.Positions.Clear();
+        _store.Save();
+    }
+
+    // ───────────────────────────── hotkeys ─────────────────────────────
+
+    private void BuildHotkeyRows()
+    {
+        foreach (var action in Enum.GetValues<HotkeyAction>())
+        {
+            var grid = new Grid { Margin = new Thickness(0, 6, 0, 6) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
+
+            var labels = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            labels.Children.Add(new TextBlock { Text = Hotkey.Describe(action), FontWeight = FontWeights.SemiBold });
+            var status = new TextBlock
+            {
+                Foreground = (Brush)FindResource("DangerBrush"),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Visibility = Visibility.Collapsed,
+                Margin = new Thickness(0, 2, 12, 0),
+            };
+            labels.Children.Add(status);
+
+            var box = new TextBox
+            {
+                IsReadOnly = true,
+                IsReadOnlyCaretVisible = false,
+                Cursor = Cursors.Hand,
+                Height = 32,
+                Padding = new Thickness(8, 0, 8, 0),
+                VerticalContentAlignment = VerticalAlignment.Center,
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                FontWeight = FontWeights.SemiBold,
+                ToolTip = "Click, then press a new shortcut",
+                Tag = action,
+            };
+            System.Windows.Automation.AutomationProperties.SetName(box, Hotkey.Describe(action));
+            box.GotKeyboardFocus += HotkeyBox_GotFocus;
+            box.LostKeyboardFocus += HotkeyBox_LostFocus;
+            box.PreviewKeyDown += HotkeyBox_PreviewKeyDown;
+            Grid.SetColumn(box, 1);
+
+            grid.Children.Add(labels);
+            grid.Children.Add(box);
+            HotkeyRows.Children.Add(grid);
+            _hotkeyRows[action] = (box, status);
+        }
+    }
+
+    private void RefreshHotkeyRows()
+    {
+        var failed = _main.Hotkeys?.Failed ?? [];
+        foreach (var (action, (box, status)) in _hotkeyRows)
+        {
+            if (!box.IsKeyboardFocused)
+                box.Text = S.GetHotkey(action).ToDisplayString();
+            var isFailed = failed.Contains(action);
+            status.Text = isFailed ? "Windows wouldn't register this. Another app may be using it." : "";
+            status.Visibility = isFailed ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void HotkeyBox_GotFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        // Release global hotkeys so the combination reaches this box instead of moving the band.
+        _main.Hotkeys?.Suspend();
+        var box = (TextBox)sender;
+        box.Text = "Press keys…";
+        box.BorderBrush = (Brush)FindResource("AccentBrush");
+    }
+
+    private void HotkeyBox_LostFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        var box = (TextBox)sender;
+        box.ClearValue(BorderBrushProperty);
+        _main.Hotkeys?.Resume();
+        RefreshHotkeyRows();
+    }
+
+    private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        e.Handled = true;
+        var box = (TextBox)sender;
+        var action = (HotkeyAction)box.Tag;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+        if (key == Key.Escape)
+        {
+            NavHotkeys.Focus();
+            return;
+        }
+
+        var mods = Keyboard.Modifiers;
+        if (Hotkey.IsModifierKey(key))
+        {
+            box.Text = new Hotkey(mods, Key.None).ToDisplayString().Replace("None", "…");
+            return;
+        }
+
+        var hotkey = new Hotkey(mods, key);
+        var (_, status) = _hotkeyRows[action];
+        if (!hotkey.IsValidGlobal)
+        {
+            ShowRowError(status, "Include Ctrl or Alt so the shortcut doesn't block normal typing.");
+            return;
+        }
+
+        var clash = Enum.GetValues<HotkeyAction>().FirstOrDefault(a => a != action && S.GetHotkey(a) == hotkey, action);
+        if (clash != action)
+        {
+            ShowRowError(status, $"Already used for \"{Hotkey.Describe(clash)}\".");
+            return;
+        }
+
+        S.SetHotkey(action, hotkey);
+        _store.Save();
+        NavHotkeys.Focus();
+    }
+
+    private static void ShowRowError(TextBlock status, string message)
+    {
+        status.Text = message;
+        status.Visibility = Visibility.Visible;
+    }
+
+    private void ResetHotkeys_Click(object sender, RoutedEventArgs e)
+    {
+        S.Hotkeys.Clear();
+        _store.Save();
+    }
+}
+

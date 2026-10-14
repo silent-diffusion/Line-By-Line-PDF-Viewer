@@ -1,0 +1,150 @@
+<Window x:Class="LineByLine.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings · Line by Line" Width="820" Height="580" MinWidth="640" MinHeight="460"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="#F6F6F7" Foreground="{StaticResource TextBrush}"
+        FontFamily="{StaticResource UiFont}" FontSize="13" UseLayoutRounding="True">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="210"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+
+        <Border Background="{StaticResource ChromeBrush}" BorderBrush="{StaticResource ChromeBorderBrush}" BorderThickness="0,0,1,0">
+            <DockPanel Margin="10,16">
+                <TextBlock DockPanel.Dock="Bottom" x:Name="VersionText" Foreground="{StaticResource SubtleTextBrush}" FontSize="12" Margin="12,0"/>
+                <StackPanel>
+                    <RadioButton x:Name="NavBand" Content="Focus band" Style="{StaticResource NavItem}" GroupName="Nav" IsChecked="True" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavHotkeys" Content="Hotkeys" Style="{StaticResource NavItem}" GroupName="Nav" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavWindow" Content="Window" Style="{StaticResource NavItem}" GroupName="Nav" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavUpdates" Content="Updates" Style="{StaticResource NavItem}" GroupName="Nav" Checked="Nav_Checked"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+            <Grid Margin="32,26,32,24">
+
+                <!-- Focus band -->
+                <StackPanel x:Name="BandPage">
+                    <TextBlock Text="Focus band" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,18"/>
+
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Content="−" Style="{StaticResource SecondaryButton}" Width="34" Padding="0" Click="LinesMinus_Click"/>
+                                <TextBlock x:Name="LinesValue" Width="36" TextAlignment="Center" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                                <Button Content="+" Style="{StaticResource SecondaryButton}" Width="34" Padding="0" Click="LinesPlus_Click"/>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Lines in view" FontWeight="SemiBold"/>
+                                <TextBlock Text="How many lines the band highlights at once." Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button x:Name="StepMinusButton" Content="−" Style="{StaticResource SecondaryButton}" Width="34" Padding="0" Click="StepMinus_Click"/>
+                                    <TextBlock x:Name="StepValue" Width="36" TextAlignment="Center" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                                    <Button x:Name="StepPlusButton" Content="+" Style="{StaticResource SecondaryButton}" Width="34" Padding="0" Click="StepPlus_Click"/>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Step size" FontWeight="SemiBold"/>
+                                    <TextBlock Text="How many lines one keypress moves the band." Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </DockPanel>
+                            <CheckBox x:Name="StepMatchesLines" Content="Same as lines in view" Margin="0,12,0,0"
+                                      Checked="StepMatches_Changed" Unchecked="StepMatches_Changed"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <DockPanel>
+                                <TextBlock x:Name="DimValue" DockPanel.Dock="Right" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <StackPanel>
+                                    <TextBlock Text="Dim strength" FontWeight="SemiBold"/>
+                                    <TextBlock Text="How dark everything outside the band gets. Ctrl+Alt+D turns dimming on and off."
+                                               Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </DockPanel>
+                            <Slider x:Name="DimSlider" Minimum="0" Maximum="0.85" SmallChange="0.05" LargeChange="0.1"
+                                    TickFrequency="0.05" IsSnapToTickEnabled="True" Margin="0,12,0,0" ValueChanged="DimSlider_ValueChanged"/>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource SubtleTextBrush}" Margin="2,4,0,0"
+                               Text="The band snaps to the text lines in digital PDFs. Scanned PDFs step in fixed-height lines until OCR arrives in v0.3."/>
+                </StackPanel>
+
+                <!-- Hotkeys -->
+                <StackPanel x:Name="HotkeysPage" Visibility="Collapsed">
+                    <TextBlock Text="Hotkeys" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,16"
+                               Text="These work everywhere, even while Excel has focus. Click a shortcut, then press the new key combination. Use Ctrl or Alt with a key; Esc cancels."/>
+                    <Border Style="{StaticResource Card}" Padding="18,6">
+                        <StackPanel x:Name="HotkeyRows"/>
+                    </Border>
+                    <DockPanel Margin="0,4,0,0">
+                        <Button DockPanel.Dock="Right" Content="Reset to defaults" Style="{StaticResource SecondaryButton}" Click="ResetHotkeys_Click"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="{StaticResource SubtleTextBrush}" VerticalAlignment="Center" Margin="2,0,16,0"
+                                   Text="Some Intel graphics drivers use Ctrl+Alt+arrows to rotate the screen. If the band doesn't move, turn those off in the Intel control panel or pick different keys here."/>
+                    </DockPanel>
+                </StackPanel>
+
+                <!-- Window -->
+                <StackPanel x:Name="WindowPage" Visibility="Collapsed">
+                    <TextBlock Text="Window" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,18"/>
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <CheckBox x:Name="TopmostSwitch" DockPanel.Dock="Right" Style="{StaticResource Switch}" VerticalAlignment="Center"
+                                      Checked="TopmostSwitch_Changed" Unchecked="TopmostSwitch_Changed" AutomationProperties.Name="Always on top"/>
+                            <StackPanel>
+                                <TextBlock Text="Always on top" FontWeight="SemiBold"/>
+                                <TextBlock Text="Keep Line by Line above other windows, handy on a single monitor." Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <CheckBox x:Name="RememberSwitch" DockPanel.Dock="Right" Style="{StaticResource Switch}" VerticalAlignment="Center"
+                                      Checked="RememberSwitch_Changed" Unchecked="RememberSwitch_Changed" AutomationProperties.Name="Resume where you left off"/>
+                            <StackPanel>
+                                <TextBlock Text="Resume where you left off" FontWeight="SemiBold"/>
+                                <TextBlock Text="Reopening a file puts the band back on the line you were on." Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Updates -->
+                <StackPanel x:Name="UpdatesPage" Visibility="Collapsed">
+                    <TextBlock Text="Updates" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,18"/>
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Check for updates" Style="{StaticResource SecondaryButton}" IsEnabled="False" VerticalAlignment="Center"/>
+                            <StackPanel>
+                                <TextBlock x:Name="InstalledVersionText" FontWeight="SemiBold"/>
+                                <TextBlock Text="Updates from GitHub arrive in v0.5, along with the installer." Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" VerticalAlignment="Center" IsEnabled="False"
+                                      AutomationProperties.Name="Automatic updates"/>
+                            <StackPanel>
+                                <TextBlock Text="Automatic updates" FontWeight="SemiBold"/>
+                                <TextBlock Text="Check every time Line by Line opens and install new versions automatically." Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Window>
