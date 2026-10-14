@@ -130,6 +130,9 @@ public class VisualSmokeTests
         ((System.Windows.Controls.RadioButton)settings.FindName("NavValueGrab")).IsChecked = true;
         Pump(400);
         Save(settings, Path.Combine(outDir, "7-settings-value-grab.png"));
+        ((System.Windows.Controls.RadioButton)settings.FindName("NavUpdates")).IsChecked = true;
+        Pump(300);
+        Save(settings, Path.Combine(outDir, "8-settings-updates.png"));
         settings.Close();
 
         window.Close();

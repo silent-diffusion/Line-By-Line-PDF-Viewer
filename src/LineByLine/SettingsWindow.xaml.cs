@@ -23,10 +23,10 @@ public partial class SettingsWindow : Window
         _main = main;
         InitializeComponent();
 
-        var version = Assembly.GetExecutingAssembly().GetName().Version;
-        var versionText = version == null ? "" : $"{version.Major}.{version.Minor}.{version.Build}";
+        var versionText = App.Updates.CurrentVersion;
         VersionText.Text = $"Line by Line v{versionText}";
-        InstalledVersionText.Text = $"Installed version {versionText}";
+        InstalledVersionText.Text = App.Updates.IsInstalled ? $"Installed version {versionText}" : $"Version {versionText} (run from source)";
+        ShowUpdateIdle();
 
         BuildHotkeyRows();
         Refresh();
@@ -45,6 +45,8 @@ public partial class SettingsWindow : Window
         DimValue.Text = $"{Math.Round(S.DimOpacity * 100)}%";
         TopmostSwitch.IsChecked = S.AlwaysOnTop;
         RememberSwitch.IsChecked = S.RememberPosition;
+        AutoUpdateSwitch.IsChecked = S.AutoUpdate;
+        AutoUpdateSwitch.IsEnabled = App.Updates.IsInstalled;
         OcrSwitch.IsChecked = S.OcrEnabled && OcrReader.IsAvailable;
         OcrSwitch.IsEnabled = OcrReader.IsAvailable;
         OcrDescription.Text = OcrReader.IsAvailable
@@ -139,6 +141,104 @@ public partial class SettingsWindow : Window
         if (_loading)
             return;
         S.ShowValueGrabButton = ValueGrabButtonSwitch.IsChecked == true;
+        _store.Save();
+    }
+
+    // ───────────────────────────── updates ─────────────────────────────
+
+    private Velopack.UpdateInfo? _update;
+
+    private void ShowUpdateIdle()
+    {
+        var updates = App.Updates;
+        CheckUpdatesButton.IsEnabled = updates.IsInstalled;
+        if (!updates.IsInstalled)
+        {
+            UpdateStatusText.Text = "Updates work in the installed app. Get the installer from GitHub Releases.";
+            return;
+        }
+        if (updates.Downloaded is { } ready)
+        {
+            ShowUpdateCard(ready, downloaded: true);
+            UpdateStatusText.Text = $"Version {UpdateService.VersionOf(ready)} is downloaded and installs when you close Line by Line.";
+            return;
+        }
+        UpdateStatusText.Text = "Checks the Line by Line releases on GitHub.";
+    }
+
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        CheckUpdatesButton.IsEnabled = false;
+        UpdateStatusText.Text = "Checking GitHub…";
+        UpdateCard.Visibility = Visibility.Collapsed;
+        try
+        {
+            _update = await App.Updates.CheckAsync();
+            if (_update == null)
+            {
+                UpdateStatusText.Text = $"You're on the latest version. Checked {DateTime.Now:t}.";
+                return;
+            }
+            UpdateStatusText.Text = "A new version is available.";
+            ShowUpdateCard(_update, downloaded: App.Updates.Downloaded != null);
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = $"Couldn't reach GitHub ({ex.Message}). Check your connection and try again.";
+        }
+        finally
+        {
+            CheckUpdatesButton.IsEnabled = true;
+        }
+    }
+
+    private void ShowUpdateCard(Velopack.UpdateInfo update, bool downloaded)
+    {
+        _update = update;
+        UpdateTitle.Text = $"Version {UpdateService.VersionOf(update)} is available";
+        UpdateNotes.Text = UpdateService.NotesOf(update);
+        UpdateNowButton.Content = downloaded ? "Restart now to update" : "Update & restart now";
+        UpdateNowButton.IsEnabled = LaterButton.IsEnabled = true;
+        UpdateCard.Visibility = Visibility.Visible;
+    }
+
+    private async void UpdateNow_Click(object sender, RoutedEventArgs e)
+    {
+        if (_update == null)
+            return;
+        UpdateNowButton.IsEnabled = LaterButton.IsEnabled = false;
+        try
+        {
+            if (App.Updates.Downloaded == null)
+            {
+                await App.Updates.DownloadAsync(_update, percent =>
+                    Dispatcher.BeginInvoke(() => UpdateNowButton.Content = $"Downloading… {percent}%"));
+            }
+            UpdateNowButton.Content = "Restarting…";
+            App.Updates.ApplyAndRestart(_update);
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = $"The update didn't finish ({ex.Message}). Try again in a moment.";
+            UpdateNowButton.Content = "Update & restart now";
+            UpdateNowButton.IsEnabled = LaterButton.IsEnabled = true;
+        }
+    }
+
+    private void Later_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateCard.Visibility = Visibility.Collapsed;
+        UpdateStatusText.Text = "Update postponed. Check again anytime.";
+    }
+
+    private void ReleaseLink_Click(object sender, RoutedEventArgs e) =>
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(UpdateService.ReleasesUrl) { UseShellExecute = true });
+
+    private void AutoUpdateSwitch_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        S.AutoUpdate = AutoUpdateSwitch.IsChecked == true;
         _store.Save();
     }
 

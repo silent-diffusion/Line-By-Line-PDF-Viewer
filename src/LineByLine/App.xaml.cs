@@ -5,6 +5,8 @@ namespace LineByLine;
 
 public partial class App : Application
 {
+    public static UpdateService Updates { get; } = new();
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);

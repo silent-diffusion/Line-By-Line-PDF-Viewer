@@ -3,7 +3,7 @@
 A lightweight Windows PDF viewer for **line-by-line data entry**. It spotlights one or more lines of an invoice (or any document), dims the rest of the page, and lets you step to the next line with a global hotkey, without leaving Excel.
 
 > Repo: https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer
-> Status: **v0.4**: v0.3 plus Value Grab
+> Status: **v0.5**: installer and in-app updates. [Download the latest release](https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer/releases/latest)
 
 ---
 
@@ -79,13 +79,14 @@ All rebindable in Settings.
 ## Install & updates
 
 ### Install
-- Download **`LineByLine-Setup.exe`** from the [Releases](https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer/releases) page and run it. Install takes one click, needs no admin rights, and adds a Start menu shortcut.
+- Download **`LineByLine-win-Setup.exe`** from the [latest release](https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer/releases/latest) and run it. Install takes one click, needs no admin rights, and adds a Start menu shortcut. It installs to `%LocalAppData%\LineByLine`; uninstall from Windows Settings → Apps.
+- The installer is about 80 MB because it includes .NET, so nothing else needs installing. Updates after that download only what changed.
 - The installer is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
 
 ### Updates (Settings → Updates)
 - **Check for Updates** button: checks the latest GitHub release.
   - If one exists, the app shows the **new version number and its release notes** (a short description of what changed) and asks **Update & restart now** or **Later**.
-- **Auto-update** toggle: when on, the app checks every time it opens and installs updates automatically.
+- **Automatic updates** switch (off by default): when on, the app checks GitHub every time it opens and downloads any new version in the background. If no invoice is open yet, it installs and restarts right away; otherwise it installs quietly when you close the app, so it never interrupts an invoice in progress.
 - Updates are delta packages, so they're small and fast.
 
 ---
@@ -117,6 +118,22 @@ dotnet test
 
 `samples/make_sample_invoice.py` regenerates `samples/sample-invoice.pdf`, the test invoice (fictional data). To save screenshots of the real window in landscape, portrait and Settings, set `LBL_SCREENSHOT_DIR` to a folder and run `dotnet test --filter Category=Visual`.
 
+## Releasing a new version
+
+1. Bump `<Version>` in `src/LineByLine/LineByLine.csproj`.
+2. Add `release-notes/<version>.md`. Its text is what users see under "What's new" in Settings → Updates.
+3. Commit, then tag and push:
+
+```bash
+git tag v0.5.1
+```
+
+```bash
+git push origin main v0.5.1
+```
+
+The [Release workflow](.github/workflows/release.yml) runs the tests, builds a self-contained app, packs it with Velopack (installer, full and delta update packages) and publishes the GitHub release. Installed copies pick it up from there.
+
 ## Tech stack
 
 | Part | Choice |
@@ -136,7 +153,7 @@ Target: Windows 10/11, x64.
 - **v0.2** ✅: resize the band on all edges; column focus (narrow the band and it steps only through lines with the same column layout, across pages); remembered per file
 - **v0.3** ✅: OCR for scanned PDFs and images (PNG, JPG, TIFF incl. multi-page, BMP), with a Settings switch
 - **v0.4** ✅: Value Grab (dollar amount default, whole-row mode, copy one or all lines, full disable, toolbar button can be hidden)
-- **v0.5**: installer, Settings → Updates, auto-update via GitHub Releases
+- **v0.5** ✅: one-click installer, Settings → Updates (check, release notes, update & restart), automatic updates, app icon
 - **Later**: batch / multi-file queue, code signing
 
 ## License

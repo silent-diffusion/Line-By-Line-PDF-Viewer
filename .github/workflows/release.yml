@@ -1,0 +1,68 @@
+# Builds the installer and publishes a GitHub release when a version tag is pushed:
+#   git tag v0.5.0 && git push origin v0.5.0
+# The tag must match <Version> in src/LineByLine/LineByLine.csproj. Release notes come from
+# release-notes/<version>.md and are what the app shows in Settings → Updates.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  VPK_VERSION: 1.2.161
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Read version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          $csproj = Get-Content src/LineByLine/LineByLine.csproj -Raw
+          if ($csproj -notmatch "<Version>$([regex]::Escape($version))</Version>") {
+            throw "Tag $version doesn't match <Version> in LineByLine.csproj"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Test
+        run: dotnet test LineByLine.sln -c Release
+
+      - name: Publish app
+        run: dotnet publish src/LineByLine/LineByLine.csproj -c Release -r win-x64 --self-contained true -o publish
+
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk --version ${{ env.VPK_VERSION }}
+
+      - name: Fetch previous release (for delta updates)
+        run: vpk download github --repoUrl ${{ github.server_url }}/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Pack installer
+        shell: pwsh
+        run: |
+          $notes = "release-notes/${{ steps.version.outputs.version }}.md"
+          $args = @("pack", "--packId", "LineByLine", "--packVersion", "${{ steps.version.outputs.version }}",
+                    "--packDir", "publish", "--mainExe", "LineByLine.exe", "--packTitle", "Line by Line",
+                    "--packAuthors", "silent-diffusion", "--icon", "assets/app.ico")
+          if (Test-Path $notes) { $args += @("--releaseNotes", $notes) }
+          vpk @args
+
+      - name: Publish GitHub release
+        run: >
+          vpk upload github
+          --repoUrl ${{ github.server_url }}/${{ github.repository }}
+          --token ${{ secrets.GITHUB_TOKEN }}
+          --publish
+          --releaseName "Line by Line ${{ steps.version.outputs.version }}"
+          --tag ${{ github.ref_name }}

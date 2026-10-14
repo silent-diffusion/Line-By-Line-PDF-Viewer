@@ -90,6 +90,40 @@ public partial class MainWindow : Window
         _hotkeys = new HotkeyManager(new WindowInteropHelper(this).Handle);
         _hotkeys.Pressed += OnHotkey;
         RegisterHotkeys();
+        if (S.AutoUpdate)
+            _ = AutoUpdateAsync();
+    }
+
+    /// <summary>
+    /// Auto-update: check GitHub on start and download any new version in the background. If
+    /// nothing is open yet it installs and restarts right away; otherwise it installs quietly
+    /// when the app is closed, so an invoice is never yanked away mid-entry.
+    /// </summary>
+    private async Task AutoUpdateAsync()
+    {
+        var updates = App.Updates;
+        if (!updates.IsInstalled)
+            return;
+        try
+        {
+            var update = await updates.CheckAsync();
+            if (update == null)
+                return;
+            await updates.DownloadAsync(update);
+            var version = UpdateService.VersionOf(update);
+            if (_doc == null)
+            {
+                ShowToast($"Updating to version {version}…", seconds: 10);
+                updates.ApplyAndRestart(update);
+                return;
+            }
+            updates.ApplyOnExit(update);
+            ShowToast($"Version {version} is downloaded and installs when you close Line by Line. Settings → Updates can restart now.", seconds: 8);
+        }
+        catch (Exception)
+        {
+            // Offline or GitHub unreachable: try again next start. Not worth interrupting work for.
+        }
     }
 
     protected override void OnClosed(EventArgs e)

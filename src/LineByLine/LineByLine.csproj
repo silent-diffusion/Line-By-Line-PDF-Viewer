@@ -12,12 +12,20 @@
     <AssemblyName>LineByLine</AssemblyName>
     <RootNamespace>LineByLine</RootNamespace>
     <Product>Line by Line</Product>
-    <Version>0.4.0</Version>
+    <Version>0.5.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\app.ico</ApplicationIcon>
+    <!-- Program.Main runs Velopack's install/update hooks before WPF starts. -->
+    <StartupObject>LineByLine.Program</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
+    <Resource Include="..\..\assets\app.ico" Link="app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Docnet.Core" Version="2.6.0" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
 </Project>

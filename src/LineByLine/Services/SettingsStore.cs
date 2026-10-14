@@ -50,6 +50,9 @@ public sealed class AppSettings
     public bool ValueGrabEnabled { get; set; }
     public ValueGrabMode ValueGrabMode { get; set; } = ValueGrabMode.Amount;
     public bool ShowValueGrabButton { get; set; } = true;
+
+    /// <summary>Check GitHub on every start and install new versions automatically.</summary>
+    public bool AutoUpdate { get; set; }
     public Dictionary<string, string> Hotkeys { get; set; } = new();
     public Dictionary<string, FilePosition> Positions { get; set; } = new();
     public WindowPlacement? Window { get; set; }
