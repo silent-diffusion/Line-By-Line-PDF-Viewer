@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Docnet.Core;
@@ -12,6 +13,22 @@ public sealed record TextRow(double Left, double Top, double Right, double Botto
 {
     public double Height => Bottom - Top;
     public double Center => (Top + Bottom) / 2;
+
+    /// <summary>The line split at wide gaps, so each cell is roughly one table column.</summary>
+    public IReadOnlyList<TextCell> Cells { get; init; } = [];
+}
+
+/// <summary>A run of text on a line with no wide gaps in it, e.g. one table cell.</summary>
+public sealed record TextCell(double Left, double Right, string Text, bool IsNumeric)
+{
+    // Amounts and quantities: "425.00", "$1,825.59", "(45.00)", "-12", "7%".
+    private static readonly Regex NumericPattern = new(@"^[\$€£¥(+\-]*\s*\d[\d,.\s]*\)?%?$", RegexOptions.Compiled);
+
+    public static TextCell Create(double left, double right, string text) =>
+        new(left, right, text, NumericPattern.IsMatch(text.Trim()));
+
+    public bool Overlaps(double left, double right, double tolerance = 0) =>
+        Left - tolerance < right && Right + tolerance > left;
 }
 
 public sealed class PdfPage

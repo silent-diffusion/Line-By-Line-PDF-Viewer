@@ -18,8 +18,8 @@ public partial class MainWindow : Window
     private const double PtToDip = 96.0 / 72.0;
     private const double MaxFitPageWidth = 1000;   // keeps pages readable, not giant, on wide monitors
     private const double PageGap = 24;
-    private const double BandPadX = 8, BandPadY = 3;  // in PDF points
     private const double ThumbWidth = 76;
+    private const double EdgeGrab = 8;             // px inside the band edge that start a resize
 
     private sealed class PageView
     {
@@ -28,6 +28,8 @@ public partial class MainWindow : Window
         public required Image Image { get; init; }
         public double RenderedScale { get; set; }
     }
+
+    private enum DragMode { None, Move, Left, Right, Top, Bottom }
 
     private readonly SettingsStore _store;
     private readonly List<PageView> _pages = [];
@@ -38,24 +40,27 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _scrollTimer;
 
     private PdfDoc? _doc;
+    private BandNavigator? _nav;
     private HotkeyManager? _hotkeys;
-    private int _pageIndex, _rowIndex;
     private double _zoom = 1;
     private bool _fitWidth = true;
     private bool _dimEnabled = true;
     private bool _portrait;
     private int _renderGeneration;
 
-    // band drag
-    private bool _dragging;
+    // band drag / resize
+    private DragMode _drag;
     private Point _dragStart;
-    private double _dragBandTop;
+    private Rect _dragOrigin;
+    private bool _bandHovered;
 
     // smooth scroll
     private double _scrollFrom, _scrollTo;
     private DateTime _scrollStart;
 
     private AppSettings S => _store.Settings;
+    private int PageIndex => _nav?.Page ?? 0;
+    private double Scale => _zoom * PtToDip;
 
     public MainWindow(SettingsStore store)
     {
@@ -112,7 +117,7 @@ public partial class MainWindow : Window
     {
         Topmost = S.AlwaysOnTop;
         PinToggle.IsChecked = S.AlwaysOnTop;
-        PinIcon.Text = S.AlwaysOnTop ? "\uE840" : "\uE718"; // pinned / pin glyphs
+        PinIcon.Text = S.AlwaysOnTop ? "" : ""; // pinned / pin glyphs
         PinToggle.ToolTip = S.AlwaysOnTop ? "Always on top: on" : "Always on top: off";
         LinesText.Text = S.LinesInView.ToString();
         StepText.Text = S.EffectiveStep.ToString();
@@ -122,8 +127,13 @@ public partial class MainWindow : Window
         HudHints.Text = $"{next} next · {prev} back";
         EmptyHints.Text = $"{next} next line · {prev} previous · Ctrl+O open";
 
+        if (_nav != null)
+        {
+            _nav.LinesInView = S.LinesInView;
+            _nav.Step = S.EffectiveStep;
+        }
+
         RegisterHotkeys();
-        ClampRow();
         UpdateOverlay();
     }
 
@@ -150,6 +160,7 @@ public partial class MainWindow : Window
 
         SavePosition();
         _doc = doc;
+        _nav = new BandNavigator(doc) { LinesInView = S.LinesInView, Step = S.EffectiveStep };
         _renderGeneration++;
         FileNameText.Text = System.IO.Path.GetFileName(path);
         FileNameText.Foreground = (Brush)FindResource("TextBrush");
@@ -160,14 +171,16 @@ public partial class MainWindow : Window
         BuildPages();
         BuildThumbnails();
 
-        _pageIndex = 0;
-        _rowIndex = 0;
         if (S.RememberPosition && S.Positions.TryGetValue(SettingsStore.PositionKey(path), out var pos))
         {
-            _pageIndex = Math.Clamp(pos.Page, 0, doc.Pages.Count - 1);
-            _rowIndex = pos.Row;
+            _nav.PlaceAt(pos.Page, pos.Row);
+            if (pos.SpanLeft is { } left && pos.SpanRight is { } right)
+                _nav.SetSpan(left, right);
         }
-        ClampRow();
+        else
+        {
+            _nav.PlaceAt(0, 0);
+        }
 
         _fitWidth = true;
         Scroller.ScrollToVerticalOffset(0);
@@ -180,6 +193,7 @@ public partial class MainWindow : Window
         if (doc.Pages.All(p => p.RowsAreFallback))
             ShowToast("No text found in this PDF (it may be a scan), so the band steps in fixed-height lines. OCR support is coming in v0.3.");
 
+        UpdatePageIndicators();
         SavePosition();
     }
 
@@ -267,7 +281,6 @@ public partial class MainWindow : Window
                     image.Source = t.Result;
             }, TaskScheduler.FromCurrentSynchronizationContext());
         }
-        UpdatePageIndicators();
     }
 
     // ───────────────────────────── zoom & rendering ─────────────────────────────
@@ -289,8 +302,8 @@ public partial class MainWindow : Window
         _zoom = Math.Clamp(zoom, 0.25, 4);
         foreach (var view in _pages)
         {
-            view.Image.Width = view.Page.Width * PtToDip * _zoom;
-            view.Image.Height = view.Page.Height * PtToDip * _zoom;
+            view.Image.Width = view.Page.Width * Scale;
+            view.Image.Height = view.Page.Height * Scale;
         }
         _renderTimer.Stop();
         _renderTimer.Start();
@@ -303,10 +316,10 @@ public partial class MainWindow : Window
             return;
         var doc = _doc;
         var generation = _renderGeneration;
-        var scale = _zoom * PtToDip * DpiScale();
+        var scale = Scale * DpiScale();
 
         // Current page first so the page you're reading sharpens immediately.
-        var order = _pages.OrderBy(p => Math.Abs(p.Page.Index - _pageIndex)).ToList();
+        var order = _pages.OrderBy(p => Math.Abs(p.Page.Index - PageIndex)).ToList();
         foreach (var view in order)
         {
             if (Math.Abs(view.RenderedScale - scale) < 0.01)
@@ -315,7 +328,7 @@ public partial class MainWindow : Window
             try
             {
                 var bmp = await Task.Run(() => doc.Render(index, scale));
-                if (generation != _renderGeneration || Math.Abs(_zoom * PtToDip * DpiScale() - scale) > 0.001)
+                if (generation != _renderGeneration || Math.Abs(Scale * DpiScale() - scale) > 0.001)
                     return; // a newer document or zoom superseded this pass
                 view.Image.Source = bmp;
                 view.RenderedScale = scale;
@@ -346,82 +359,40 @@ public partial class MainWindow : Window
 
     // ───────────────────────────── band navigation ─────────────────────────────
 
-    private IReadOnlyList<TextRow> Rows(int page) => _doc?.Pages[page].Rows ?? [];
-
-    private void ClampRow()
-    {
-        if (_doc == null || _doc.Pages.Count == 0)
-            return;
-        _pageIndex = Math.Clamp(_pageIndex, 0, _doc.Pages.Count - 1);
-        _rowIndex = Math.Clamp(_rowIndex, 0, Math.Max(0, Rows(_pageIndex).Count - 1));
-    }
-
-    private int NextPageWithRows(int from, int direction)
-    {
-        for (var p = from + direction; p >= 0 && p < _doc!.Pages.Count; p += direction)
-            if (Rows(p).Count > 0)
-                return p;
-        return -1;
-    }
-
     private void MoveNext()
     {
-        if (_doc == null)
+        if (_nav == null)
             return;
-        var rows = Rows(_pageIndex);
-        var next = _rowIndex + S.EffectiveStep;
-        if (next < rows.Count)
+        if (!_nav.Next())
         {
-            _rowIndex = next;
-        }
-        else
-        {
-            var page = NextPageWithRows(_pageIndex, +1);
-            if (page < 0)
-            {
-                ShowToast("End of document", seconds: 1.5);
-                return;
-            }
-            _pageIndex = page;
-            _rowIndex = 0;
+            ShowToast("End of document", seconds: 1.5);
+            return;
         }
         BandMoved();
     }
 
     private void MovePrevious()
     {
-        if (_doc == null)
+        if (_nav == null)
             return;
-        if (_rowIndex > 0)
+        if (!_nav.Previous())
         {
-            _rowIndex = Math.Max(0, _rowIndex - S.EffectiveStep);
-        }
-        else
-        {
-            var page = NextPageWithRows(_pageIndex, -1);
-            if (page < 0)
-            {
-                ShowToast("Start of document", seconds: 1.5);
-                return;
-            }
-            _pageIndex = page;
-            _rowIndex = Math.Max(0, Rows(page).Count - S.LinesInView);
+            ShowToast("Start of document", seconds: 1.5);
+            return;
         }
         BandMoved();
     }
 
     private void GoToPage(int page)
     {
-        if (_doc == null || page < 0 || page >= _doc.Pages.Count)
+        if (_nav == null || page < 0 || page >= _nav.Document.Pages.Count)
             return;
-        _pageIndex = page;
-        _rowIndex = 0;
+        _nav.GoToPage(page);
         BandMoved();
     }
 
     private void BandMoved()
     {
-        ClampRow();
         UpdateOverlay();
         UpdatePageIndicators();
         EnsureBandVisible(animate: true);
@@ -430,80 +401,72 @@ public partial class MainWindow : Window
 
     private void PlaceBandAt(PageView view, Point pointInImage)
     {
-        if (_dragging)
+        if (_nav == null || _drag != DragMode.None)
             return;
-        var y = pointInImage.Y / (_zoom * PtToDip);
-        var row = NearestRow(view.Page, y);
+        var row = BandNavigator.NearestRow(view.Page, pointInImage.Y / Scale);
         if (row < 0)
             return;
-        _pageIndex = view.Page.Index;
-        _rowIndex = row;
+        _nav.PlaceAt(view.Page.Index, row);
         BandMoved();
     }
 
-    private static int NearestRow(PdfPage page, double yPts)
+    private void SetColumnFocus(double left, double right)
     {
-        var rows = page.Rows;
-        if (rows.Count == 0)
-            return -1;
-        for (var i = 0; i < rows.Count; i++)
-            if (yPts >= rows[i].Top - BandPadY && yPts <= rows[i].Bottom + BandPadY)
-                return i;
-        var best = 0;
-        for (var i = 1; i < rows.Count; i++)
-            if (Math.Abs(rows[i].Center - yPts) < Math.Abs(rows[best].Center - yPts))
-                best = i;
-        return best;
-    }
-
-    /// <summary>The band's rectangle in PDF points on the current page, or null when there is nothing to show.</summary>
-    private Rect? BandRectPts()
-    {
-        if (_doc == null)
-            return null;
-        var page = _doc.Pages[_pageIndex];
-        var rows = page.Rows;
-        if (rows.Count == 0)
-            return null;
-        var first = Math.Clamp(_rowIndex, 0, rows.Count - 1);
-        var last = Math.Min(rows.Count - 1, first + S.LinesInView - 1);
-        var top = rows[first].Top;
-        var bottom = rows[first].Bottom;
-        for (var i = first; i <= last; i++)
+        if (_nav == null)
+            return;
+        if (_nav.IsFullWidth(left + BandNavigator.PadX, right - BandNavigator.PadX))
         {
-            top = Math.Min(top, rows[i].Top);
-            bottom = Math.Max(bottom, rows[i].Bottom);
+            ClearColumnFocus();
+            return;
         }
-        var left = Math.Max(0, page.ContentLeft - BandPadX);
-        var right = Math.Min(page.Width, page.ContentRight + BandPadX);
-        return new Rect(left, top - BandPadY, right - left, bottom - top + 2 * BandPadY);
+        var hadFocus = _nav.HasColumnFocus;
+        _nav.SetSpan(left, right);
+        if (!hadFocus)
+            ShowToast("Column focus on: the band now stops only on lines shaped like this one. Double-click the band or press Esc to go back to full width.", seconds: 6);
+        BandMoved();
     }
 
-    /// <summary>The band in workspace coordinates.</summary>
-    private Rect? BandRectInWorkspace()
+    private void ClearColumnFocus()
     {
-        if (BandRectPts() is not { } r || _pageIndex >= _pages.Count)
+        if (_nav is not { HasColumnFocus: true })
+            return;
+        _nav.ClearSpan();
+        BandMoved();
+    }
+
+    /// <summary>Converts a rectangle in PDF points on the current page to workspace coordinates.</summary>
+    private Rect? ToWorkspace(Rect pts)
+    {
+        if (PageIndex >= _pages.Count)
             return null;
-        var image = _pages[_pageIndex].Image;
+        var image = _pages[PageIndex].Image;
         if (!image.IsLoaded || image.ActualWidth <= 0)
             return null;
-        var k = _zoom * PtToDip;
-        var topLeft = image.TranslatePoint(new Point(r.Left * k, r.Top * k), Workspace);
-        return new Rect(topLeft.X, topLeft.Y, r.Width * k, r.Height * k);
+        var topLeft = image.TranslatePoint(new Point(pts.Left * Scale, pts.Top * Scale), Workspace);
+        return new Rect(topLeft.X, topLeft.Y, pts.Width * Scale, pts.Height * Scale);
+    }
+
+    /// <summary>Converts a workspace point to PDF points on the current page.</summary>
+    private Point ToPagePoints(Point workspacePoint)
+    {
+        var p = Workspace.TranslatePoint(workspacePoint, _pages[PageIndex].Image);
+        return new Point(p.X / Scale, p.Y / Scale);
     }
 
     private void UpdateOverlay()
     {
-        if (_dragging)
+        if (_drag != DragMode.None)
             return;
-        var rect = BandRectInWorkspace();
-        if (rect is not { } r)
+        if (_nav?.BandRect() is not { } pts || ToWorkspace(pts) is not { } r)
         {
             Band.Visibility = Grip.Visibility = DimPath.Visibility = Visibility.Collapsed;
+            SetHandlesVisible(false);
+            Region.Visibility = RegionLabel.Visibility = Visibility.Collapsed;
             UpdateHud();
             return;
         }
         PositionBand(r);
+        PositionRegion();
         UpdateHud();
     }
 
@@ -516,6 +479,12 @@ public partial class MainWindow : Window
         Band.Height = Math.Max(4, r.Height);
         Canvas.SetLeft(Grip, r.Left - 22);
         Canvas.SetTop(Grip, r.Top + r.Height / 2 - 9);
+
+        PlaceHandle(HandleLeft, r.Left, r.Top + r.Height / 2);
+        PlaceHandle(HandleRight, r.Right, r.Top + r.Height / 2);
+        PlaceHandle(HandleTop, r.Left + r.Width / 2, r.Top);
+        PlaceHandle(HandleBottom, r.Left + r.Width / 2, r.Bottom);
+        SetHandlesVisible(_bandHovered || _drag != DragMode.None);
 
         if (_dimEnabled && S.DimOpacity > 0)
         {
@@ -531,32 +500,62 @@ public partial class MainWindow : Window
         }
     }
 
-    private void UpdateHud()
+    private static void PlaceHandle(FrameworkElement handle, double centerX, double centerY)
     {
-        if (_doc == null)
-            return;
-        var rows = Rows(_pageIndex);
-        if (rows.Count == 0)
+        Canvas.SetLeft(handle, centerX - handle.Width / 2);
+        Canvas.SetTop(handle, centerY - handle.Height / 2);
+    }
+
+    private void SetHandlesVisible(bool visible)
+    {
+        var v = visible ? Visibility.Visible : Visibility.Collapsed;
+        HandleLeft.Visibility = HandleRight.Visibility = HandleTop.Visibility = HandleBottom.Visibility = v;
+    }
+
+    /// <summary>The dashed outline around every line the band will stop on while column focus is on.</summary>
+    private void PositionRegion()
+    {
+        if (_nav?.RegionRect() is not { } pts || ToWorkspace(pts) is not { } r)
         {
-            HudLines.Text = $"No lines on page {_pageIndex + 1}";
+            Region.Visibility = RegionLabel.Visibility = Visibility.Collapsed;
             return;
         }
-        var first = _rowIndex + 1;
-        var last = Math.Min(rows.Count, _rowIndex + S.LinesInView);
-        var range = last > first ? $"{first}–{last}" : first.ToString();
-        var pageText = _doc.Pages.Count > 1 ? $"  ·  Page {_pageIndex + 1} of {_doc.Pages.Count}" : "";
-        HudLines.Text = $"Lines {range} of {rows.Count}{pageText}";
+        Region.Visibility = RegionLabel.Visibility = Visibility.Visible;
+        Canvas.SetLeft(Region, r.Left);
+        Canvas.SetTop(Region, r.Top);
+        Region.Width = r.Width;
+        Region.Height = r.Height;
+        var stops = _nav.Stops(PageIndex).Count;
+        RegionLabelText.Text = $"Column focus · {stops} {(stops == 1 ? "line" : "lines")} on this page";
+        Canvas.SetLeft(RegionLabel, r.Left + 8);
+        Canvas.SetTop(RegionLabel, r.Top - 11);
+    }
+
+    private void UpdateHud()
+    {
+        if (_nav == null)
+            return;
+        ColumnChip.Visibility = _nav.HasColumnFocus ? Visibility.Visible : Visibility.Collapsed;
+        if (_nav.Progress() is not { } p)
+        {
+            HudLines.Text = $"No lines on page {PageIndex + 1}";
+            return;
+        }
+        var range = p.To > p.From ? $"{p.From}–{p.To}" : p.From.ToString();
+        var pages = _nav.Document.Pages.Count;
+        var pageText = pages > 1 ? $"  ·  Page {PageIndex + 1} of {pages}" : "";
+        HudLines.Text = $"Lines {range} of {p.Of}{pageText}";
     }
 
     private void UpdatePageIndicators()
     {
         var accent = (Brush)FindResource("AccentBrush");
         for (var i = 0; i < _thumbFrames.Count; i++)
-            _thumbFrames[i].BorderBrush = i == _pageIndex ? accent : Brushes.Transparent;
+            _thumbFrames[i].BorderBrush = i == PageIndex ? accent : Brushes.Transparent;
         for (var i = 0; i < _railButtons.Count; i++)
         {
-            _railButtons[i].Background = i == _pageIndex ? (Brush)FindResource("AccentSoftBrush") : Brushes.Transparent;
-            _railButtons[i].Foreground = i == _pageIndex ? (Brush)FindResource("AccentDarkBrush") : (Brush)FindResource("MutedTextBrush");
+            _railButtons[i].Background = i == PageIndex ? (Brush)FindResource("AccentSoftBrush") : Brushes.Transparent;
+            _railButtons[i].Foreground = i == PageIndex ? (Brush)FindResource("AccentDarkBrush") : (Brush)FindResource("MutedTextBrush");
         }
     }
 
@@ -564,14 +563,13 @@ public partial class MainWindow : Window
 
     private void EnsureBandVisible(bool animate)
     {
-        if (BandRectPts() is not { } r || _pageIndex >= _pages.Count)
+        if (_nav?.BandRect() is not { } r || PageIndex >= _pages.Count)
             return;
-        var image = _pages[_pageIndex].Image;
+        var image = _pages[PageIndex].Image;
         if (!image.IsLoaded)
             return;
-        var k = _zoom * PtToDip;
-        var top = image.TranslatePoint(new Point(0, r.Top * k), Scroller).Y;
-        var bottom = top + r.Height * k;
+        var top = image.TranslatePoint(new Point(0, r.Top * Scale), Scroller).Y;
+        var bottom = top + r.Height * Scale;
         var viewport = Scroller.ViewportHeight;
         const double topMargin = 48, bottomMargin = 96; // keep clear of the HUD pill
         if (top >= topMargin && bottom <= viewport - bottomMargin)
@@ -610,61 +608,167 @@ public partial class MainWindow : Window
             UpdateOverlay();
     }
 
-    // ───────────────────────────── band dragging ─────────────────────────────
+    // ───────────────────────────── band drag & resize ─────────────────────────────
+
+    /// <summary>Which edge (if any) the pointer is on. Side edges win over top/bottom on thin bands.</summary>
+    private DragMode HitZone(Point inBand)
+    {
+        if (inBand.X <= EdgeGrab) return DragMode.Left;
+        if (inBand.X >= Band.ActualWidth - EdgeGrab) return DragMode.Right;
+        var edgeY = Math.Min(EdgeGrab, Band.ActualHeight / 4);
+        if (inBand.Y <= edgeY) return DragMode.Top;
+        if (inBand.Y >= Band.ActualHeight - edgeY) return DragMode.Bottom;
+        return DragMode.Move;
+    }
+
+    private static Cursor CursorFor(DragMode mode) => mode switch
+    {
+        DragMode.Left or DragMode.Right => Cursors.SizeWE,
+        DragMode.Top or DragMode.Bottom => Cursors.SizeNS,
+        _ => Cursors.SizeAll,
+    };
+
+    private void Band_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _bandHovered = true;
+        SetHandlesVisible(true);
+    }
+
+    private void Band_MouseLeave(object sender, MouseEventArgs e)
+    {
+        _bandHovered = false;
+        if (_drag == DragMode.None)
+            SetHandlesVisible(false);
+    }
 
     private void Band_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        _dragging = true;
-        _dragStart = e.GetPosition(Workspace);
-        _dragBandTop = Canvas.GetTop(Band);
-        Band.CaptureMouse();
         e.Handled = true;
+        if (e.ClickCount == 2)
+        {
+            ClearColumnFocus();
+            return;
+        }
+        _drag = HitZone(e.GetPosition(Band));
+        _dragStart = e.GetPosition(Workspace);
+        _dragOrigin = new Rect(Canvas.GetLeft(Band), Canvas.GetTop(Band), Band.Width, Band.Height);
+        Band.CaptureMouse();
     }
 
     private void Band_MouseMove(object sender, MouseEventArgs e)
     {
-        if (!_dragging)
+        if (_drag == DragMode.None)
+        {
+            Band.Cursor = CursorFor(HitZone(e.GetPosition(Band)));
             return;
-        var dy = e.GetPosition(Workspace).Y - _dragStart.Y;
-        PositionBand(new Rect(Canvas.GetLeft(Band), _dragBandTop + dy, Band.Width, Band.Height));
+        }
+        var d = e.GetPosition(Workspace) - _dragStart;
+        var o = _dragOrigin;
+        const double min = 16;
+        var r = _drag switch
+        {
+            DragMode.Move => new Rect(o.Left, o.Top + d.Y, o.Width, o.Height),
+            DragMode.Left => new Rect(Math.Min(o.Left + d.X, o.Right - min), o.Top, Math.Max(min, o.Width - d.X), o.Height),
+            DragMode.Right => new Rect(o.Left, o.Top, Math.Max(min, o.Width + d.X), o.Height),
+            DragMode.Top => new Rect(o.Left, Math.Min(o.Top + d.Y, o.Bottom - min), o.Width, Math.Max(min, o.Height - d.Y)),
+            DragMode.Bottom => new Rect(o.Left, o.Top, o.Width, Math.Max(min, o.Height + d.Y)),
+            _ => o,
+        };
+        PositionBand(r);
     }
 
     private void Band_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (!_dragging)
+        if (_drag == DragMode.None)
             return;
-        _dragging = false;
+        var mode = _drag;
+        var moved = e.GetPosition(Workspace) - _dragStart;
+        _drag = DragMode.None;
         Band.ReleaseMouseCapture();
         e.Handled = true;
 
-        var dy = e.GetPosition(Workspace).Y - _dragStart.Y;
-        if (Math.Abs(dy) < 3)
+        if (_nav == null || Math.Abs(moved.X) + Math.Abs(moved.Y) < 3)
         {
             UpdateOverlay();
             return;
         }
 
-        // Snap: find the page under the band's first line and the nearest row there.
+        var r = new Rect(Canvas.GetLeft(Band), Canvas.GetTop(Band), Band.Width, Band.Height);
+        switch (mode)
+        {
+            case DragMode.Move:
+                FinishMove(r);
+                break;
+            case DragMode.Left:
+            case DragMode.Right:
+                FinishWidth(r, mode);
+                break;
+            case DragMode.Top:
+                FinishTop(r);
+                break;
+            case DragMode.Bottom:
+                FinishBottom(r);
+                break;
+        }
+    }
+
+    private void FinishMove(Rect r)
+    {
+        // Snap to the line under the band's first row, on whichever page that is.
         var firstRowHalf = 0.0;
-        var rows = Rows(_pageIndex);
-        if (_rowIndex < rows.Count)
-            firstRowHalf = (rows[_rowIndex].Height / 2 + BandPadY) * _zoom * PtToDip;
-        var probe = new Point(Canvas.GetLeft(Band) + Band.Width / 2, _dragBandTop + dy + firstRowHalf);
+        if (_nav!.BandRows() is { } band)
+            firstRowHalf = (_nav.Document.Pages[PageIndex].Rows[band.First].Height / 2 + BandNavigator.PadY) * Scale;
+        var probe = new Point(r.Left + r.Width / 2, r.Top + firstRowHalf);
 
         foreach (var view in _pages)
         {
             var p = Workspace.TranslatePoint(probe, view.Image);
-            if (p.Y >= 0 && p.Y <= view.Image.ActualHeight)
-            {
-                var row = NearestRow(view.Page, p.Y / (_zoom * PtToDip));
-                if (row >= 0)
-                {
-                    _pageIndex = view.Page.Index;
-                    _rowIndex = row;
-                }
-                break;
-            }
+            if (p.Y < 0 || p.Y > view.Image.ActualHeight)
+                continue;
+            var row = BandNavigator.NearestRow(view.Page, p.Y / Scale);
+            if (row >= 0)
+                _nav.PlaceAt(view.Page.Index, row); // keeps any column focus; this line becomes the reference shape
+            break;
         }
+        BandMoved();
+    }
+
+    private void FinishWidth(Rect r, DragMode mode)
+    {
+        var left = ToPagePoints(new Point(r.Left, r.Top)).X;
+        var right = ToPagePoints(new Point(r.Right, r.Top)).X;
+        if (mode == DragMode.Left)
+            left = _nav!.SnapEdge(left, isLeftEdge: true);
+        else
+            right = _nav!.SnapEdge(right, isLeftEdge: false);
+        SetColumnFocus(left, right);
+    }
+
+    private void FinishTop(Rect r)
+    {
+        var nav = _nav!;
+        if (nav.BandRows() is not { } band)
+            return;
+        var top = ToPagePoints(new Point(r.Left, r.Top)).Y;
+        var newFirst = nav.FirstStopBelow(top);
+        if (newFirst < 0 || newFirst > band.Last)
+            newFirst = band.Last;
+        var stops = nav.Stops(PageIndex);
+        var lines = stops.Count(i => i >= newFirst && i <= band.Last);
+        nav.PlaceAt(PageIndex, newFirst);
+        SetLines(Math.Max(1, lines));
+    }
+
+    private void FinishBottom(Rect r)
+    {
+        var bottom = ToPagePoints(new Point(r.Left, r.Bottom)).Y;
+        SetLines(Math.Max(1, _nav!.StopsAbove(bottom)));
+    }
+
+    private void SetLines(int lines)
+    {
+        S.LinesInView = Math.Clamp(lines, 1, 10);
+        _store.Save(); // ApplySettings pushes the new size into the navigator and redraws
         BandMoved();
     }
 
@@ -684,8 +788,8 @@ public partial class MainWindow : Window
         {
             case HotkeyAction.NextLines: MoveNext(); break;
             case HotkeyAction.PreviousLines: MovePrevious(); break;
-            case HotkeyAction.NextPage: GoToPage(Math.Min(_pageIndex + 1, (_doc?.Pages.Count ?? 1) - 1)); break;
-            case HotkeyAction.PreviousPage: GoToPage(Math.Max(_pageIndex - 1, 0)); break;
+            case HotkeyAction.NextPage: GoToPage(PageIndex + 1); break;
+            case HotkeyAction.PreviousPage: GoToPage(PageIndex - 1); break;
             case HotkeyAction.ToggleDim: ToggleDim(); break;
             case HotkeyAction.ToggleAlwaysOnTop: SetAlwaysOnTop(!S.AlwaysOnTop); break;
         }
@@ -710,16 +814,18 @@ public partial class MainWindow : Window
         if (e.OriginalSource is TextBox)
             return;
         var ctrl = Keyboard.Modifiers == ModifierKeys.Control;
+        var none = Keyboard.Modifiers == ModifierKeys.None;
         switch (e.Key)
         {
             case Key.O when ctrl: ShowOpenDialog(); break;
             case Key.D0 or Key.NumPad0 when ctrl: ZoomToFit(); break;
             case Key.OemPlus or Key.Add when ctrl: ZoomBy(1.1); break;
             case Key.OemMinus or Key.Subtract when ctrl: ZoomBy(1 / 1.1); break;
-            case Key.Down or Key.J when Keyboard.Modifiers == ModifierKeys.None: MoveNext(); break;
-            case Key.Up or Key.K when Keyboard.Modifiers == ModifierKeys.None: MovePrevious(); break;
-            case Key.PageDown when Keyboard.Modifiers == ModifierKeys.None: GoToPage(_pageIndex + 1); break;
-            case Key.PageUp when Keyboard.Modifiers == ModifierKeys.None: GoToPage(_pageIndex - 1); break;
+            case Key.Down or Key.J when none: MoveNext(); break;
+            case Key.Up or Key.K when none: MovePrevious(); break;
+            case Key.PageDown when none: GoToPage(PageIndex + 1); break;
+            case Key.PageUp when none: GoToPage(PageIndex - 1); break;
+            case Key.Escape when none && _nav is { HasColumnFocus: true }: ClearColumnFocus(); break;
             default: return;
         }
         e.Handled = true;
@@ -773,6 +879,7 @@ public partial class MainWindow : Window
     private void OpenButton_Click(object sender, RoutedEventArgs e) => ShowOpenDialog();
     private void PrevButton_Click(object sender, RoutedEventArgs e) => MovePrevious();
     private void NextButton_Click(object sender, RoutedEventArgs e) => MoveNext();
+    private void ColumnChip_Click(object sender, RoutedEventArgs e) => ClearColumnFocus();
     private void PinToggle_Click(object sender, RoutedEventArgs e) => SetAlwaysOnTop(PinToggle.IsChecked == true);
 
     private void LinesMinus_Click(object sender, RoutedEventArgs e) => ChangeLines(-1);
@@ -836,7 +943,7 @@ public partial class MainWindow : Window
     {
         // A maximized chrome-less window hangs over the screen edge by the resize border.
         Root.Margin = WindowState == WindowState.Maximized ? MaximizedInset() : new Thickness(0);
-        MaxIcon.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922"; // restore / maximize glyphs
+        MaxIcon.Text = WindowState == WindowState.Maximized ? "" : ""; // restore / maximize glyphs
         MaxButton.ToolTip = WindowState == WindowState.Maximized ? "Restore" : "Maximize";
     }
 
@@ -847,20 +954,21 @@ public partial class MainWindow : Window
     {
         const int smCxFrame = 32, smCxPaddedBorder = 92;
         var px = GetSystemMetrics(smCxFrame) + GetSystemMetrics(smCxPaddedBorder);
-        var dip = px / DpiScale();
-        return new Thickness(dip);
+        return new Thickness(px / DpiScale());
     }
 
     // ───────────────────────────── persistence ─────────────────────────────
 
     private void SavePosition()
     {
-        if (_doc == null || !S.RememberPosition)
+        if (_nav == null || _doc == null || !S.RememberPosition)
             return;
         S.Positions[SettingsStore.PositionKey(_doc.FilePath)] = new FilePosition
         {
-            Page = _pageIndex,
-            Row = _rowIndex,
+            Page = _nav.Page,
+            Row = _nav.Row,
+            SpanLeft = _nav.SpanLeft,
+            SpanRight = _nav.SpanRight,
             LastOpened = DateTime.UtcNow,
         };
     }

@@ -126,15 +126,27 @@
                 <!-- Spotlight: dim everything except the band -->
                 <Canvas x:Name="Overlay">
                     <Path x:Name="DimPath" Fill="#0C0E12" IsHitTestVisible="False" Visibility="Collapsed"/>
+                    <!-- Column focus: dashed outline around every line the band will stop on -->
+                    <Rectangle x:Name="Region" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.5" StrokeDashArray="4 3"
+                               RadiusX="6" RadiusY="6" Opacity="0.85" IsHitTestVisible="False" Visibility="Collapsed"/>
+                    <Border x:Name="RegionLabel" Background="{StaticResource HudBrush}" CornerRadius="9" Height="20" Padding="9,0"
+                            IsHitTestVisible="False" Visibility="Collapsed">
+                        <TextBlock x:Name="RegionLabelText" Foreground="#9CC2FF" FontSize="11" VerticalAlignment="Center"/>
+                    </Border>
                     <Border x:Name="Band" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" CornerRadius="6"
-                            Background="Transparent" Cursor="SizeNS" Visibility="Collapsed"
+                            Background="Transparent" Cursor="SizeAll" Visibility="Collapsed"
                             MouseLeftButtonDown="Band_MouseLeftButtonDown" MouseMove="Band_MouseMove"
                             MouseLeftButtonUp="Band_MouseLeftButtonUp" MouseWheel="Band_MouseWheel"
-                            ToolTip="Drag to move the band">
+                            MouseEnter="Band_MouseEnter" MouseLeave="Band_MouseLeave"
+                            ToolTip="Drag to move · drag the side edges to focus on columns · drag top/bottom to change how many lines · double-click to reset width">
                         <Border.Effect>
                             <DropShadowEffect BlurRadius="26" ShadowDepth="6" Direction="270" Opacity="0.5" Color="Black"/>
                         </Border.Effect>
                     </Border>
+                    <Rectangle x:Name="HandleLeft" Width="8" Height="16" RadiusX="2" RadiusY="2" Fill="White" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.5" IsHitTestVisible="False" Visibility="Collapsed"/>
+                    <Rectangle x:Name="HandleRight" Width="8" Height="16" RadiusX="2" RadiusY="2" Fill="White" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.5" IsHitTestVisible="False" Visibility="Collapsed"/>
+                    <Rectangle x:Name="HandleTop" Width="16" Height="8" RadiusX="2" RadiusY="2" Fill="White" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.5" IsHitTestVisible="False" Visibility="Collapsed"/>
+                    <Rectangle x:Name="HandleBottom" Width="16" Height="8" RadiusX="2" RadiusY="2" Fill="White" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.5" IsHitTestVisible="False" Visibility="Collapsed"/>
                     <UniformGrid x:Name="Grip" Columns="2" Rows="3" Width="12" Height="18" IsHitTestVisible="False" Visibility="Collapsed">
                         <Ellipse Width="4" Height="4" Fill="#C9CCD2"/><Ellipse Width="4" Height="4" Fill="#C9CCD2"/>
                         <Ellipse Width="4" Height="4" Fill="#C9CCD2"/><Ellipse Width="4" Height="4" Fill="#C9CCD2"/>
@@ -169,6 +181,25 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock x:Name="HudLines" Foreground="{StaticResource HudTextBrush}" FontSize="12" VerticalAlignment="Center"/>
                         <Border x:Name="HudSeparator" Width="1" Height="16" Background="#3A3B40" Margin="12,0"/>
+                        <Button x:Name="ColumnChip" Click="ColumnChip_Click" Visibility="Collapsed" Margin="0,0,10,0" Cursor="Hand" Focusable="False"
+                                ToolTip="Back to full-width lines (Esc)">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bd" Background="#26406B" CornerRadius="12" Height="24" Padding="10,0,8,0">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="Column focus" Foreground="#CFE0FF" FontSize="12" VerticalAlignment="Center"/>
+                                            <TextBlock Text="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="9" Foreground="#CFE0FF"
+                                                       VerticalAlignment="Center" Margin="7,1,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#335389"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
                         <TextBlock x:Name="HudHints" Foreground="{StaticResource HudMutedBrush}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <Button Style="{StaticResource HudButton}" Click="PrevButton_Click" ToolTip="Previous line(s)" Margin="0,0,6,0">
                             <Path Data="M4,10 L8,6 L12,10" Stroke="{StaticResource HudTextBrush}" StrokeThickness="1.7"

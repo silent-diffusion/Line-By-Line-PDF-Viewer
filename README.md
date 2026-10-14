@@ -3,7 +3,7 @@
 A lightweight Windows PDF viewer for **line-by-line data entry**. It spotlights one or more lines of an invoice (or any document), dims the rest of the page, and lets you step to the next line with a global hotkey, without leaving Excel.
 
 > Repo: https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer
-> Status: **v0.1**: open a PDF, focus band, global hotkeys, settings, landscape/portrait layouts
+> Status: **v0.2**: everything in v0.1 plus resizable band and column focus
 
 ---
 
@@ -91,6 +91,8 @@ All rebindable in Settings.
 - **Open** a PDF with the file button, `Ctrl+O`, or drag it onto the window.
 - **Move the band** with `Ctrl+Alt+↓` / `Ctrl+Alt+↑` from any app, or with `↓`/`↑` (also `J`/`K`) while Line by Line has focus.
 - **Place the band** by clicking any line, or by dragging the band itself. It snaps to the nearest line.
+- **Resize the band** by dragging its edges (handles appear on hover). Top and bottom change how many lines it covers.
+- **Column focus**: drag the band's left or right edge to narrow it to some columns, e.g. Qty → Amount. The edge snaps to the nearest column. From then on the band stops only on lines with the same layout as the one it's on, so it skips wrapped descriptions, table headers and notes, and carries on into the same table on the next page. A dashed outline shows those lines. Double-click the band, press `Esc`, or click **Column focus ✕** in the bottom bar to go back to full-width lines.
 - **Band size and step**: the `Band` controls in the top bar, or Settings → Focus band.
 - **Zoom**: `Ctrl+scroll`, `Ctrl+=`/`Ctrl+-`, and `Ctrl+0` to fit the page width.
 - **Layout**: when the window is taller than it is wide (a portrait monitor), the thumbnails shrink to a slim page rail and the page fills the width.
@@ -127,7 +129,7 @@ Target: Windows 10/11, x64.
 ## Roadmap
 
 - **v0.1** ✅: open PDF, focus band (lines in view, step size, dim), global hotkeys, settings, click/drag to place the band, resume position, landscape/portrait layouts
-- **v0.2**: resize band (incl. width), width-aware smart next/previous
+- **v0.2** ✅: resize the band on all edges; column focus (narrow the band and it steps only through lines with the same column layout, across pages); remembered per file
 - **v0.3**: OCR for scanned PDFs and images
 - **v0.4**: Value Grab (dollar amount default, row mode, full disable)
 - **v0.5**: installer, Settings → Updates, auto-update via GitHub Releases

@@ -7,6 +7,10 @@ public sealed class FilePosition
 {
     public int Page { get; set; }
     public int Row { get; set; }
+
+    /// <summary>Column focus span in PDF points, when the band was narrowed.</summary>
+    public double? SpanLeft { get; set; }
+    public double? SpanRight { get; set; }
     public DateTime LastOpened { get; set; }
 }
 

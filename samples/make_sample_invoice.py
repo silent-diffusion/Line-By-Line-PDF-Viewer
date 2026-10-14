@@ -8,7 +8,7 @@ from pathlib import Path
 ITEMS = [
     ("PA-2011", "Copy paper, 8.5 x 11, 20 lb (case)", 10, 42.50),
     ("TN-0458", "Toner cartridge, black, high-yield", 4, 89.99),
-    ("LB-4600", "Shipping labels, 4 x 6 (roll)", 6, 18.25),
+    ("LB-4600", "Shipping labels, 4 x 6 (roll)", 6, 18.25, "500 labels per roll, perforated"),
     ("TP-0200", "Packing tape, 2 in, clear", 24, 3.40),
     ("BX-1212", "Corrugated box, 12 x 12 x 8", 200, 1.15),
     ("SF-1800", "Stretch film, 18 in x 1500 ft", 8, 24.75),
@@ -73,14 +73,19 @@ def table_header(p: Page, y: float):
     p.line(54, y + 6, 558, 1.2, 0.1)
 
 
-def item_row(p: Page, y: float, item):
-    sku, desc, qty, unit = item
+def item_row(p: Page, y: float, item) -> float:
+    """Draws one item and returns the y of the next one. A 5th field wraps onto a second line."""
+    sku, desc, qty, unit, *note = item
     p.text(54, y, sku, "F3", 9, 0.35)
     p.text(130, y, desc, "F1", 10)
     p.text_right(400, y, str(qty), "F3", 10)
     p.text_right(476, y, f"{unit:,.2f}", "F3", 10)
     p.text_right(558, y, f"{qty * unit:,.2f}", "F3", 10)
+    if note:
+        y += 13
+        p.text(130, y, note[0], "F1", 9, 0.4)
     p.line(54, y + 7, 558)
+    return y + ROW_H
 
 
 def build_pages():
@@ -104,8 +109,7 @@ def build_pages():
     table_header(p1, y)
     y += 22
     for item in ITEMS[:ROWS_PAGE_1]:
-        item_row(p1, y, item)
-        y += ROW_H
+        y = item_row(p1, y, item)
     p1.text_right(558, 760, "Page 1 of 2", "F1", 8, 0.4)
     pages.append(p1)
 
@@ -115,10 +119,9 @@ def build_pages():
     table_header(p2, y)
     y += 22
     for item in ITEMS[ROWS_PAGE_1:]:
-        item_row(p2, y, item)
-        y += ROW_H
+        y = item_row(p2, y, item)
 
-    subtotal = sum(q * u for _, _, q, u in ITEMS)
+    subtotal = sum(item[2] * item[3] for item in ITEMS)
     tax = round(subtotal * TAX_RATE, 2)
     y += 16
     p2.text_right(476, y, "Subtotal", "F1", 10)

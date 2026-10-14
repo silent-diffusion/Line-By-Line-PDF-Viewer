@@ -74,6 +74,18 @@ public class VisualSmokeTests
         Pump(800);
         Save(window, Path.Combine(outDir, "1-landscape.png"));
 
+        // Column focus: narrow the band to Qty→Amount on an item line.
+        var nav = (LineByLine.Pdf.BandNavigator)typeof(MainWindow)
+            .GetField("_nav", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+        var row = nav.Document.Pages[0].Rows.ToList().FindIndex(r => r.Text.Contains("TN-0458"));
+        nav.PlaceAt(0, row);
+        typeof(MainWindow).GetMethod("SetColumnFocus", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(window, [370.0, 566.0]);
+        Invoke(window, "MoveNext");
+        Pump(800);
+        Save(window, Path.Combine(outDir, "1b-column-focus.png"));
+        typeof(MainWindow).GetMethod("ClearColumnFocus", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+
         window.Width = 1080;
         window.Height = 1872;
         Pump(1500);

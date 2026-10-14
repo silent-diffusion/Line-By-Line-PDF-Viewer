@@ -6,6 +6,10 @@ namespace LineByLine.Pdf;
 /// <summary>Groups PDF characters into visual text lines.</summary>
 public static class LineDetector
 {
+    // Gaps wider than this many text-heights split a line into separate cells (columns).
+    // Word spaces are well under one text-height; column gutters are several.
+    private const double CellGapFactor = 1.5;
+
     private readonly record struct Glyph(char Char, double Left, double Top, double Right, double Bottom, bool AfterSpace)
     {
         public double Height => Bottom - Top;
@@ -46,24 +50,45 @@ public static class LineDetector
         {
             var ordered = Glyphs.OrderBy(g => g.Left).ToList();
             var sb = new StringBuilder();
+            var cells = new List<TextCell>();
+            var cell = new StringBuilder();
+            var cellLeft = ordered[0].Left;
             for (var i = 0; i < ordered.Count; i++)
             {
                 if (i > 0)
                 {
                     var gap = ordered[i].Left - ordered[i - 1].Right;
                     var size = Math.Max(ordered[i].Height, ordered[i - 1].Height);
+
+                    // A wide gap separates table columns: close the current cell.
+                    if (gap > CellGapFactor * size)
+                    {
+                        cells.Add(TextCell.Create(cellLeft, ordered[i - 1].Right, cell.ToString()));
+                        cell.Clear();
+                        cellLeft = ordered[i].Left;
+                        sb.Append(' ');
+                    }
                     // PDFium's space markers are the main signal; the gap check only catches
                     // wide jumps between columns. Tighter thresholds split monospaced numbers
                     // ("89. 99"), because narrow glyphs like '.' leave room inside their cell.
-                    if (ordered[i].AfterSpace || gap > size)
+                    else if (ordered[i].AfterSpace || gap > size)
+                    {
                         sb.Append(' ');
+                        cell.Append(' ');
+                    }
                 }
                 sb.Append(ordered[i].Char);
+                cell.Append(ordered[i].Char);
             }
+            cells.Add(TextCell.Create(cellLeft, ordered[^1].Right, cell.ToString()));
+
             return new TextRow(
                 ordered.Min(g => g.Left), ordered.Min(g => g.Top),
                 ordered.Max(g => g.Right), ordered.Max(g => g.Bottom),
-                sb.ToString());
+                sb.ToString())
+            {
+                Cells = cells,
+            };
         }
     }
 
