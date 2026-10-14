@@ -1,5 +1,5 @@
 using System.IO;
-using LineByLine.Pdf;
+using LineByLine.Documents;
 
 namespace LineByLine.Tests;
 

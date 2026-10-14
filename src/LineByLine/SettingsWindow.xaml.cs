@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using LineByLine.Documents;
 using LineByLine.Services;
 
 namespace LineByLine;
@@ -44,6 +45,11 @@ public partial class SettingsWindow : Window
         DimValue.Text = $"{Math.Round(S.DimOpacity * 100)}%";
         TopmostSwitch.IsChecked = S.AlwaysOnTop;
         RememberSwitch.IsChecked = S.RememberPosition;
+        OcrSwitch.IsChecked = S.OcrEnabled && OcrReader.IsAvailable;
+        OcrSwitch.IsEnabled = OcrReader.IsAvailable;
+        OcrDescription.Text = OcrReader.IsAvailable
+            ? $"Finds the lines in scanned PDFs and images (PNG, JPG, TIFF) with the OCR built into Windows, offline. Language: {OcrReader.LanguageName}."
+            : "Windows OCR isn't available on this PC. Adding a language in Windows Settings → Time & language installs it.";
         RefreshHotkeyRows();
         _loading = false;
     }
@@ -91,6 +97,14 @@ public partial class SettingsWindow : Window
         if (_loading || DimValue == null)
             return;
         S.DimOpacity = Math.Round(e.NewValue, 2);
+        _store.Save();
+    }
+
+    private void OcrSwitch_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        S.OcrEnabled = OcrSwitch.IsChecked == true;
         _store.Save();
     }
 

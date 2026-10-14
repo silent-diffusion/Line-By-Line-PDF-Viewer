@@ -1,16 +1,20 @@
 using System.Text;
 using Docnet.Core.Models;
 
-namespace LineByLine.Pdf;
+namespace LineByLine.Documents;
 
-/// <summary>Groups PDF characters into visual text lines.</summary>
+/// <summary>Groups positioned text (PDF characters or OCR words) into visual lines.</summary>
 public static class LineDetector
 {
     // Gaps wider than this many text-heights split a line into separate cells (columns).
     // Word spaces are well under one text-height; column gutters are several.
     private const double CellGapFactor = 1.5;
 
-    private readonly record struct Glyph(char Char, double Left, double Top, double Right, double Bottom, bool AfterSpace)
+    /// <summary>
+    /// A piece of text with its box in PDF points: one character from a PDF, or one word from OCR.
+    /// <paramref name="AfterSpace"/> means a space came before it in reading order.
+    /// </summary>
+    public readonly record struct Glyph(string Text, double Left, double Top, double Right, double Bottom, bool AfterSpace)
     {
         public double Height => Bottom - Top;
         public double Center => (Top + Bottom) / 2;
@@ -77,8 +81,8 @@ public static class LineDetector
                         cell.Append(' ');
                     }
                 }
-                sb.Append(ordered[i].Char);
-                cell.Append(ordered[i].Char);
+                sb.Append(ordered[i].Text);
+                cell.Append(ordered[i].Text);
             }
             cells.Add(TextCell.Create(cellLeft, ordered[^1].Right, cell.ToString()));
 
@@ -92,6 +96,7 @@ public static class LineDetector
         }
     }
 
+    /// <summary>Lines from PDFium characters, whose boxes are in pixels at <paramref name="scale"/> pixels per point.</summary>
     public static List<TextRow> Detect(IEnumerable<Character> chars, double scale)
     {
         // PDFium reports spaces (real and generated between text runs) in content order;
@@ -107,9 +112,16 @@ public static class LineDetector
             }
             if (c.Box.Right <= c.Box.Left || c.Box.Bottom <= c.Box.Top)
                 continue;
-            glyphs.Add(new Glyph(c.Char, c.Box.Left / scale, c.Box.Top / scale, c.Box.Right / scale, c.Box.Bottom / scale, afterSpace));
+            glyphs.Add(new Glyph(c.Char.ToString(), c.Box.Left / scale, c.Box.Top / scale, c.Box.Right / scale, c.Box.Bottom / scale, afterSpace));
             afterSpace = false;
         }
+        return Detect(glyphs);
+    }
+
+    /// <summary>Lines from glyphs already in PDF points.</summary>
+    public static List<TextRow> Detect(IEnumerable<Glyph> input)
+    {
+        var glyphs = input.Where(g => g.Right > g.Left && g.Bottom > g.Top && g.Text.Length > 0).ToList();
         glyphs.Sort((a, b) => a.Center.CompareTo(b.Center));
 
         // Glyphs arrive sorted by center, but side-by-side blocks (e.g. a header's left and

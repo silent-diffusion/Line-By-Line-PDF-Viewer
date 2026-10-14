@@ -3,7 +3,7 @@
 A lightweight Windows PDF viewer for **line-by-line data entry**. It spotlights one or more lines of an invoice (or any document), dims the rest of the page, and lets you step to the next line with a global hotkey, without leaving Excel.
 
 > Repo: https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer
-> Status: **v0.2**: everything in v0.1 plus resizable band and column focus
+> Status: **v0.3**: v0.2 plus OCR for scanned PDFs and images
 
 ---
 
@@ -42,7 +42,7 @@ You never click back into the viewer.
 
 ### Line detection
 - **Digital PDFs**: text positions are read straight from the PDF, so detection is exact and instant.
-- **Scanned PDFs and images** (PNG, JPG, TIFF): OCR finds where the text is on the page using the **built-in Windows OCR engine** (offline, nothing extra to install).
+- **Scanned PDFs and images** (PNG, JPG, TIFF, BMP): OCR finds where the text is on the page using the **built-in Windows OCR engine** (offline, nothing extra to install). Each page is read at a few resolutions and the words are merged, because Windows OCR tends to drop short, isolated numbers (a quantity alone in its column) and which ones it drops changes with resolution. The band works just like on a digital PDF, column focus included. The bottom bar shows **OCR** on those pages, as a reminder to check digits.
 
 ### Global hotkeys (work while Excel has focus)
 All rebindable in Settings.
@@ -88,7 +88,7 @@ All rebindable in Settings.
 
 ## Using v0.1
 
-- **Open** a PDF with the file button, `Ctrl+O`, or drag it onto the window.
+- **Open** a PDF or a scanned image with the file button, `Ctrl+O`, or drag it onto the window. Scans are read with OCR in the background (about a second per page); the band snaps to real lines as soon as each page is done.
 - **Move the band** with `Ctrl+Alt+↓` / `Ctrl+Alt+↑` from any app, or with `↓`/`↑` (also `J`/`K`) while Line by Line has focus.
 - **Place the band** by clicking any line, or by dragging the band itself. It snaps to the nearest line.
 - **Resize the band** by dragging its edges (handles appear on hover). Top and bottom change how many lines it covers.
@@ -130,7 +130,7 @@ Target: Windows 10/11, x64.
 
 - **v0.1** ✅: open PDF, focus band (lines in view, step size, dim), global hotkeys, settings, click/drag to place the band, resume position, landscape/portrait layouts
 - **v0.2** ✅: resize the band on all edges; column focus (narrow the band and it steps only through lines with the same column layout, across pages); remembered per file
-- **v0.3**: OCR for scanned PDFs and images
+- **v0.3** ✅: OCR for scanned PDFs and images (PNG, JPG, TIFF incl. multi-page, BMP), with a Settings switch
 - **v0.4**: Value Grab (dollar amount default, row mode, full disable)
 - **v0.5**: installer, Settings → Updates, auto-update via GitHub Releases
 - **Later**: batch / multi-file queue, code signing

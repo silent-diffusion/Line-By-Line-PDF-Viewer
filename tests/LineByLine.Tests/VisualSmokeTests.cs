@@ -75,7 +75,7 @@ public class VisualSmokeTests
         Save(window, Path.Combine(outDir, "1-landscape.png"));
 
         // Column focus: narrow the band to Qty→Amount on an item line.
-        var nav = (LineByLine.Pdf.BandNavigator)typeof(MainWindow)
+        var nav = (LineByLine.Documents.BandNavigator)typeof(MainWindow)
             .GetField("_nav", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
         var row = nav.Document.Pages[0].Rows.ToList().FindIndex(r => r.Text.Contains("TN-0458"));
         nav.PlaceAt(0, row);
@@ -96,6 +96,18 @@ public class VisualSmokeTests
         Pump(400);
         Save(settings, Path.Combine(outDir, "3-settings.png"));
         settings.Close();
+
+        // A scanned invoice (image, no text layer): OCR should replace the fallback stripes.
+        window.Width = 1280;
+        window.Height = 800;
+        window.OpenFile(OcrTests.MakeScan());
+        Pump(6000);
+        Invoke(window, "MoveNext");
+        Invoke(window, "MoveNext");
+        Invoke(window, "MoveNext");
+        Invoke(window, "MoveNext");
+        Pump(800);
+        Save(window, Path.Combine(outDir, "4-scan-ocr.png"));
 
         window.Close();
     }

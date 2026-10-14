@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace LineByLine.Pdf;
+namespace LineByLine.Documents;
 
 /// <summary>
 /// Where the focus band is and how it moves. Without column focus every text line is a stop.
@@ -9,7 +9,7 @@ namespace LineByLine.Pdf;
 /// wrapped descriptions, headers and notes, carrying on into the same table on the next page.
 /// All coordinates are PDF points.
 /// </summary>
-public sealed class BandNavigator(PdfDoc doc)
+public sealed class BandNavigator(Document doc)
 {
     public const double PadX = 8, PadY = 3;
 
@@ -21,7 +21,7 @@ public sealed class BandNavigator(PdfDoc doc)
     private IReadOnlyList<TextCell> _anchors = [];
     private readonly Dictionary<int, IReadOnlyList<int>> _stops = new();
 
-    public PdfDoc Document { get; } = doc;
+    public Document Document { get; } = doc;
     public int Page { get; private set; }
 
     /// <summary>Index into the page's rows of the band's first line.</summary>
@@ -34,7 +34,7 @@ public sealed class BandNavigator(PdfDoc doc)
     public double? SpanRight { get; private set; }
     public bool HasColumnFocus => SpanLeft.HasValue && SpanRight.HasValue;
 
-    private PdfPage CurrentPage => Document.Pages[Page];
+    private DocumentPage CurrentPage => Document.Pages[Page];
 
     /// <summary>Row indices on <paramref name="page"/> that the band can stop on.</summary>
     public IReadOnlyList<int> Stops(int page)
@@ -84,6 +84,13 @@ public sealed class BandNavigator(PdfDoc doc)
     {
         Page = Math.Clamp(page, 0, Document.Pages.Count - 1);
         Row = Math.Clamp(row, 0, Math.Max(0, CurrentPage.Rows.Count - 1));
+        RecomputeAnchors();
+    }
+
+    /// <summary>Call after a page's rows were replaced (e.g. by OCR) so stops and the reference shape are rebuilt.</summary>
+    public void RowsChanged()
+    {
+        Row = Math.Clamp(Row, 0, Math.Max(0, CurrentPage.Rows.Count - 1));
         RecomputeAnchors();
     }
 
@@ -271,7 +278,7 @@ public sealed class BandNavigator(PdfDoc doc)
     }
 
     /// <summary>Row nearest to <paramref name="y"/> on a page: the one containing it, else the closest center.</summary>
-    public static int NearestRow(PdfPage page, double y)
+    public static int NearestRow(DocumentPage page, double y)
     {
         var rows = page.Rows;
         if (rows.Count == 0)

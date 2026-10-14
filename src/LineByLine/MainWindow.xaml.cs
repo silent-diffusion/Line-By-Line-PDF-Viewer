@@ -8,7 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
-using LineByLine.Pdf;
+using LineByLine.Documents;
 using LineByLine.Services;
 
 namespace LineByLine;
@@ -23,7 +23,7 @@ public partial class MainWindow : Window
 
     private sealed class PageView
     {
-        public required PdfPage Page { get; init; }
+        public required DocumentPage Page { get; init; }
         public required Border Frame { get; init; }
         public required Image Image { get; init; }
         public double RenderedScale { get; set; }
@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _toastTimer;
     private readonly DispatcherTimer _scrollTimer;
 
-    private PdfDoc? _doc;
+    private Document? _doc;
     private BandNavigator? _nav;
     private HotkeyManager? _hotkeys;
     private double _zoom = 1;
@@ -47,6 +47,7 @@ public partial class MainWindow : Window
     private bool _dimEnabled = true;
     private bool _portrait;
     private int _renderGeneration;
+    private bool _ocrRunning;
 
     // band drag / resize
     private DragMode _drag;
@@ -135,6 +136,8 @@ public partial class MainWindow : Window
 
         RegisterHotkeys();
         UpdateOverlay();
+        if (S.OcrEnabled)
+            _ = RunOcrAsync();
     }
 
     // ───────────────────────────── opening files ─────────────────────────────
@@ -147,10 +150,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        PdfDoc doc;
+        Document doc;
         try
         {
-            doc = await Task.Run(() => PdfDoc.Open(path));
+            doc = await Task.Run(() => Document.Load(path));
         }
         catch (Exception ex)
         {
@@ -190,11 +193,87 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(() => EnsureBandVisible(animate: false), DispatcherPriority.Loaded);
         }, DispatcherPriority.Loaded);
 
-        if (doc.Pages.All(p => p.RowsAreFallback))
-            ShowToast("No text found in this PDF (it may be a scan), so the band steps in fixed-height lines. OCR support is coming in v0.3.");
-
         UpdatePageIndicators();
         SavePosition();
+
+        if (doc.Pages.Any(p => p.RowsAreFallback))
+        {
+            if (!S.OcrEnabled)
+                ShowToast("No text found (it may be a scan), so the band steps in fixed-height lines. Turn on OCR in Settings to read scanned pages.", seconds: 7);
+            else if (!OcrReader.IsAvailable)
+                ShowToast("No text found, and Windows OCR isn't available on this PC, so the band steps in fixed-height lines. Adding a language in Windows Settings → Time & language installs OCR.", seconds: 8);
+            else
+                _ = RunOcrAsync();
+        }
+    }
+
+    // ───────────────────────────── OCR ─────────────────────────────
+
+    /// <summary>
+    /// Reads every page that has no text (scans, images) with Windows OCR, nearest page first,
+    /// swapping each page's placeholder stripes for real lines as soon as it's done.
+    /// </summary>
+    private async Task RunOcrAsync()
+    {
+        if (_ocrRunning || _doc == null || !OcrReader.IsAvailable)
+            return;
+        var doc = _doc;
+        var generation = _renderGeneration;
+        var pending = doc.Pages.Where(p => p.RowsAreFallback).OrderBy(p => Math.Abs(p.Index - PageIndex)).ToList();
+        if (pending.Count == 0)
+            return;
+
+        _ocrRunning = true;
+        var read = 0;
+        try
+        {
+            foreach (var page in pending)
+            {
+                if (generation != _renderGeneration || !S.OcrEnabled)
+                    return; // another file was opened or OCR was switched off
+                ShowToast(pending.Count == 1
+                    ? "Reading the scanned page with OCR…"
+                    : $"Reading scanned pages with OCR… ({read + 1} of {pending.Count})", seconds: 60);
+
+                List<TextRow> rows;
+                try
+                {
+                    rows = await Task.Run(() => OcrReader.ReadPageAsync(doc, page.Index));
+                }
+                catch (Exception ex)
+                {
+                    ShowToast($"OCR couldn't read page {page.Index + 1}: {ex.Message}");
+                    continue;
+                }
+                if (generation != _renderGeneration)
+                    return;
+
+                ApplyOcrRows(page, rows);
+                read++;
+            }
+
+            var withText = pending.Count(p => p.Source == RowSource.Ocr);
+            ShowToast(withText == 0
+                ? "OCR didn't find any text, so the band steps in fixed-height lines."
+                : "Text read with OCR. Double-check numbers against the page; OCR can misread digits.", seconds: 6);
+        }
+        finally
+        {
+            _ocrRunning = false;
+        }
+    }
+
+    private void ApplyOcrRows(DocumentPage page, List<TextRow> rows)
+    {
+        // Keep the band where the reader left it: same height on the page, now on a real line.
+        double? bandTop = page.Index == PageIndex ? _nav?.BandRect()?.Top : null;
+        page.SetRows(rows, RowSource.Ocr);
+        if (_nav == null)
+            return;
+        _nav.RowsChanged();
+        if (bandTop is { } top)
+            _nav.PlaceAt(page.Index, BandNavigator.NearestRow(page, top + BandNavigator.PadY + 1));
+        UpdateOverlay();
     }
 
     private void BuildPages()
@@ -544,7 +623,13 @@ public partial class MainWindow : Window
         var range = p.To > p.From ? $"{p.From}–{p.To}" : p.From.ToString();
         var pages = _nav.Document.Pages.Count;
         var pageText = pages > 1 ? $"  ·  Page {PageIndex + 1} of {pages}" : "";
-        HudLines.Text = $"Lines {range} of {p.Of}{pageText}";
+        var source = _nav.Document.Pages[PageIndex].Source switch
+        {
+            RowSource.Ocr => "  ·  OCR",
+            RowSource.Fallback => "  ·  no text",
+            _ => "",
+        };
+        HudLines.Text = $"Lines {range} of {p.Of}{pageText}{source}";
     }
 
     private void UpdatePageIndicators()
@@ -841,21 +926,21 @@ public partial class MainWindow : Window
 
     private void Window_DragOver(object sender, DragEventArgs e)
     {
-        e.Effects = TryGetDroppedPdf(e, out _) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Effects = TryGetDroppedFile(e, out _) ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
     private void Window_Drop(object sender, DragEventArgs e)
     {
-        if (TryGetDroppedPdf(e, out var path))
+        if (TryGetDroppedFile(e, out var path))
             OpenFile(path);
     }
 
-    private static bool TryGetDroppedPdf(DragEventArgs e, out string path)
+    private static bool TryGetDroppedFile(DragEventArgs e, out string path)
     {
         path = "";
         if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files
-            && files[0].EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            && Document.IsSupported(files[0]))
         {
             path = files[0];
             return true;
@@ -867,7 +952,7 @@ public partial class MainWindow : Window
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Filter = "PDF files (*.pdf)|*.pdf",
+            Filter = Document.OpenDialogFilter,
             Title = "Open an invoice",
         };
         if (dialog.ShowDialog(this) == true)

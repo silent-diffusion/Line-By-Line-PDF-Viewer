@@ -33,6 +33,9 @@ public sealed class AppSettings
     public double DimOpacity { get; set; } = 0.55;
     public bool AlwaysOnTop { get; set; }
     public bool RememberPosition { get; set; } = true;
+
+    /// <summary>Read scanned pages and images with Windows OCR.</summary>
+    public bool OcrEnabled { get; set; } = true;
     public Dictionary<string, string> Hotkeys { get; set; } = new();
     public Dictionary<string, FilePosition> Positions { get; set; } = new();
     public WindowPlacement? Window { get; set; }

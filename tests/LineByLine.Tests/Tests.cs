@@ -1,6 +1,6 @@
 using System.IO;
 using System.Windows.Input;
-using LineByLine.Pdf;
+using LineByLine.Documents;
 using LineByLine.Services;
 
 namespace LineByLine.Tests;

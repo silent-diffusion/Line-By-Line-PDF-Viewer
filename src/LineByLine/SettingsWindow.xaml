@@ -77,8 +77,19 @@
                         </StackPanel>
                     </Border>
 
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <CheckBox x:Name="OcrSwitch" DockPanel.Dock="Right" Style="{StaticResource Switch}" VerticalAlignment="Center"
+                                      Checked="OcrSwitch_Changed" Unchecked="OcrSwitch_Changed" AutomationProperties.Name="Read scanned pages with OCR"/>
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock Text="Read scanned pages (OCR)" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="OcrDescription" Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
                     <TextBlock TextWrapping="Wrap" Foreground="{StaticResource SubtleTextBrush}" Margin="2,4,0,0"
-                               Text="The band snaps to the text lines in digital PDFs. Scanned PDFs step in fixed-height lines until OCR arrives in v0.3."/>
+                               Text="The band snaps to the text lines in digital PDFs exactly. Scans and images are read with OCR, so check numbers against the page."/>
                 </StackPanel>
 
                 <!-- Hotkeys -->
