@@ -37,7 +37,7 @@ public static class ValueExtractor
 
     /// <summary>
     /// The line's value: the rightmost number (or money amount, per <paramref name="pick"/>),
-    /// since invoices put the line total last. With column focus, only the focused columns count.
+    /// since tables usually put the line total last. With column focus, only the focused columns count.
     /// </summary>
     public static GrabbedValue? Amount(TextRow row, double? spanLeft = null, double? spanRight = null,
         ValuePick pick = ValuePick.RightmostValue)

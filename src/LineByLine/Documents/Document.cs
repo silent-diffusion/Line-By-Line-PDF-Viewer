@@ -9,7 +9,7 @@ public abstract class Document(string filePath, IReadOnlyList<DocumentPage> page
     public static readonly string[] ImageExtensions = [".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"];
 
     public const string OpenDialogFilter =
-        "Invoices (PDF or image)|*.pdf;*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp|PDF files (*.pdf)|*.pdf|Images|*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp";
+        "Documents (PDF or image)|*.pdf;*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp|PDF files (*.pdf)|*.pdf|Images|*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp";
 
     public string FilePath { get; } = filePath;
     public IReadOnlyList<DocumentPage> Pages { get; } = pages;

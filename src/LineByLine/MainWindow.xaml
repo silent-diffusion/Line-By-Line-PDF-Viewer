@@ -32,7 +32,7 @@
                             Style="{StaticResource IconButton}" WindowChrome.IsHitTestVisibleInChrome="True"
                             ToolTip="Open a PDF or scanned image (Ctrl+O)">
                         <StackPanel Orientation="Horizontal" Margin="10,0">
-                            <TextBlock x:Name="FileNameText" Text="Open invoice…" Foreground="{StaticResource MutedTextBrush}"
+                            <TextBlock x:Name="FileNameText" Text="Open document…" Foreground="{StaticResource MutedTextBrush}"
                                        MaxWidth="320" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                             <Path Data="M4,6 L8,10 L12,6" Stroke="{StaticResource MutedTextBrush}" StrokeThickness="1.6"
                                   Width="12" Height="12" Stretch="Uniform" Margin="6,1,0,0" VerticalAlignment="Center"/>
@@ -171,11 +171,11 @@
                                        Stroke="{StaticResource AccentBrush}" StrokeThickness="2.5"/>
                         </Canvas>
                     </Border>
-                    <TextBlock Text="Drop an invoice here" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,18,0,6"/>
+                    <TextBlock Text="Drop a document here" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,18,0,6"/>
                     <TextBlock Text="The band highlights a line at a time. Move it from anywhere, even while Excel has focus."
                                Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" TextAlignment="Center"
                                TextWrapping="Wrap" MaxWidth="360"/>
-                    <Button Content="Open invoice…" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Center" Margin="0,18,0,0"
+                    <Button Content="Open document…" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Center" Margin="0,18,0,0"
                             Click="OpenButton_Click"/>
                     <TextBlock x:Name="EmptyHints" Foreground="{StaticResource SubtleTextBrush}" HorizontalAlignment="Center" Margin="0,14,0,0" FontSize="12"/>
                 </StackPanel>

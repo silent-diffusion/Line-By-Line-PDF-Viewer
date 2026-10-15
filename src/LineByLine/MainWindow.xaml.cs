@@ -97,7 +97,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Auto-update: check GitHub on start and download any new version in the background. If
     /// nothing is open yet it installs and restarts right away; otherwise it installs quietly
-    /// when the app is closed, so an invoice is never yanked away mid-entry.
+    /// when the app is closed, so a document is never yanked away mid-entry.
     /// </summary>
     private async Task AutoUpdateAsync()
     {
@@ -1192,7 +1192,7 @@ public partial class MainWindow : Window
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Filter = Document.OpenDialogFilter,
-            Title = "Open an invoice",
+            Title = "Open a document",
         };
         if (dialog.ShowDialog(this) == true)
             OpenFile(dialog.FileName);
