@@ -155,6 +155,37 @@ public class VisualSmokeTests
         Save(settings, Path.Combine(outDir, "8-settings-updates.png"));
         settings.Close();
 
+        // Highlights: two whole lines, then a value-only highlight, the band one line further on.
+        store.Settings.ValueGrabEnabled = false;
+        store.Settings.LinesInView = 1;
+        store.Settings.StepSize = 0;
+        store.Save();
+        window.Width = 1280;
+        window.Height = 800;
+        window.OpenFile(SamplePath);
+        Pump(1500);
+        var nav2 = (LineByLine.Documents.BandNavigator)typeof(MainWindow)
+            .GetField("_nav", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+        nav2.PlaceAt(0, nav2.Document.Pages[0].Rows.ToList().FindIndex(r => r.Text.Contains("PA-2011")));
+        Invoke(window, "ToggleHighlight");
+        Invoke(window, "MoveNext");
+        Invoke(window, "ToggleHighlight");
+        Invoke(window, "MoveNext");
+        store.Settings.HighlightValueOnly = true;
+        Invoke(window, "ToggleHighlight");
+        store.Settings.HighlightValueOnly = false;
+        Invoke(window, "MoveNext");
+        Pump(800);
+        Save(window, Path.Combine(outDir, "9-highlights.png"));
+
+        settings = new SettingsWindow(store, window) { Left = -20000, Top = 0, Height = 900, ShowActivated = false };
+        settings.Show();
+        ((System.Windows.Controls.RadioButton)settings.FindName("NavHighlights")).IsChecked = true;
+        Pump(400);
+        Save(settings, Path.Combine(outDir, "10-settings-highlights.png"));
+        settings.Close();
+        store.Settings.Highlights.Clear();
+
         window.Close();
     }
 

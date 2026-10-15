@@ -4,7 +4,12 @@ using System.Text.RegularExpressions;
 namespace LineByLine.Documents;
 
 /// <summary>A value found on a line: what the page shows, and what goes on the clipboard.</summary>
-public sealed record GrabbedValue(string Display, string Clipboard);
+public sealed record GrabbedValue(string Display, string Clipboard)
+{
+    /// <summary>Where the value sits on the line, in PDF points (for highlighting just the value).</summary>
+    public double? Left { get; init; }
+    public double? Right { get; init; }
+}
 
 /// <summary>Which number on a line Value Grab takes.</summary>
 public enum ValuePick
@@ -47,11 +52,21 @@ public static class ValueExtractor
         {
             // A cell can hold a label and the amount together ("Total due $1,898.11"), so look
             // at its pieces from the right.
-            var pieces = NumberPieces(cell.Text);
+            var pieces = NumberPiecesWithPosition(cell.Text);
             for (var i = pieces.Count - 1; i >= 0; i--)
             {
-                if (accepts(pieces[i]))
-                    return new GrabbedValue(pieces[i], Normalize(pieces[i]));
+                var (piece, start, end) = pieces[i];
+                if (!accepts(piece))
+                    continue;
+                // Glyph positions aren't kept per character, so place the value within its
+                // cell by character share: exact when the value is the whole cell (the usual case).
+                var width = cell.Right - cell.Left;
+                var length = Math.Max(1, cell.Text.Length);
+                return new GrabbedValue(piece, Normalize(piece))
+                {
+                    Left = cell.Left + width * start / length,
+                    Right = cell.Left + width * end / length,
+                };
             }
         }
         return null;
@@ -81,23 +96,34 @@ public static class ValueExtractor
     /// space ("1, 825.59", "425. 00", "$ 9.99"), letters read for digits ("1O5.5O", "l2.00"),
     /// and trailing specks ("425.00."). Non-numeric words pass through untouched.
     /// </summary>
-    public static List<string> NumberPieces(string text)
+    public static List<string> NumberPieces(string text) => NumberPiecesWithPosition(text).Select(p => p.Text).ToList();
+
+    /// <summary><see cref="NumberPieces"/> plus each piece's character range [Start, End) in <paramref name="text"/>.</summary>
+    private static List<(string Text, int Start, int End)> NumberPiecesWithPosition(string text)
     {
-        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(FixDigits).ToList();
-        var pieces = new List<string>();
-        foreach (var word in words)
+        var pieces = new List<(string Text, int Start, int End)>();
+        foreach (Match m in Regex.Matches(text, @"\S+"))
         {
-            if (pieces.Count > 0 && ShouldJoin(pieces[^1], word))
+            var word = FixDigits(m.Value); // same length: only swaps look-alike characters
+            if (pieces.Count > 0 && ShouldJoin(pieces[^1].Text, word))
             {
                 var glue = word.Equals("CR", StringComparison.OrdinalIgnoreCase) ? " " : "";
-                pieces[^1] = pieces[^1] + glue + word;
+                pieces[^1] = (pieces[^1].Text + glue + word, pieces[^1].Start, m.Index + m.Length);
             }
             else
             {
-                pieces.Add(word);
+                pieces.Add((word, m.Index, m.Index + m.Length));
             }
         }
-        return pieces.Select(p => p.TrimEnd('.', ',', ';', ':', '\'', '"', '|')).Where(p => p.Length > 0).ToList();
+
+        var result = new List<(string Text, int Start, int End)>();
+        foreach (var (piece, start, end) in pieces)
+        {
+            var trimmed = piece.TrimEnd('.', ',', ';', ':', '\'', '"', '|');
+            if (trimmed.Length > 0)
+                result.Add((trimmed, start, end - (piece.Length - trimmed.Length)));
+        }
+        return result;
     }
 
     private static bool ShouldJoin(string left, string right)

@@ -61,6 +61,25 @@ public sealed class AppSettings
     /// <summary>Auto grab copies every line in the band instead of just the top one.</summary>
     public bool AutoGrabAllLines { get; set; }
 
+    /// <summary>Highlighter colour, "#RRGGBB". Green by default.</summary>
+    public string HighlightColor { get; set; } = "#3DDC84";
+    public double HighlightOpacity { get; set; } = 0.35;
+
+    /// <summary>Highlight every line in the band instead of just the top one.</summary>
+    public bool HighlightAllLines { get; set; }
+
+    /// <summary>Highlight just the line's value (what Value Grab would copy) instead of the whole line.</summary>
+    public bool HighlightValueOnly { get; set; }
+
+    /// <summary>Highlight lines automatically as the band moves forward past them.</summary>
+    public bool AutoHighlight { get; set; }
+
+    /// <summary>Also write highlights into the PDF so other viewers show them. Off: they live in the app only.</summary>
+    public bool SaveHighlightsToPdf { get; set; }
+
+    /// <summary>Highlights per file (same keys as <see cref="Positions"/>).</summary>
+    public Dictionary<string, List<LineMark>> Highlights { get; set; } = new();
+
     /// <summary>Check GitHub on every start and install new versions automatically.</summary>
     public bool AutoUpdate { get; set; }
     public Dictionary<string, string> Hotkeys { get; set; } = new();
@@ -115,6 +134,7 @@ public sealed class SettingsStore
         Settings.LinesInView = Math.Clamp(Settings.LinesInView, 1, 10);
         Settings.StepSize = Math.Clamp(Settings.StepSize, 0, 10);
         Settings.DimOpacity = Math.Clamp(Settings.DimOpacity, 0, 0.85);
+        Settings.HighlightOpacity = Math.Clamp(Settings.HighlightOpacity, 0.1, 0.8);
     }
 
     public void Save(bool notify = true)

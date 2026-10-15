@@ -14,6 +14,9 @@ public abstract class Document(string filePath, IReadOnlyList<DocumentPage> page
     public string FilePath { get; } = filePath;
     public IReadOnlyList<DocumentPage> Pages { get; } = pages;
 
+    /// <summary>Line by Line highlights that were saved inside the file (PDFs only).</summary>
+    public IReadOnlyList<LineMark> EmbeddedHighlights { get; protected init; } = [];
+
     /// <summary>Renders a page to a frozen bitmap. <paramref name="scale"/> is pixels per PDF point.</summary>
     public abstract BitmapSource Render(int pageIndex, double scale);
 

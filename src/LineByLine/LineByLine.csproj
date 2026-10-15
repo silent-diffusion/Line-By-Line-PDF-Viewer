@@ -12,7 +12,7 @@
     <AssemblyName>LineByLine</AssemblyName>
     <RootNamespace>LineByLine</RootNamespace>
     <Product>Line by Line</Product>
-    <Version>0.6.2</Version>
+    <Version>0.7.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\..\assets\app.ico</ApplicationIcon>
     <!-- Program.Main runs Velopack's install/update hooks before WPF starts. -->
@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <PackageReference Include="Docnet.Core" Version="2.6.0" />
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
     <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 

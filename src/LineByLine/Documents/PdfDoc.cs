@@ -19,14 +19,32 @@ public sealed class PdfDoc : Document
 
     private readonly byte[] _bytes;
 
-    private PdfDoc(string path, byte[] bytes, IReadOnlyList<DocumentPage> pages) : base(path, pages)
+    private PdfDoc(string path, byte[] bytes, IReadOnlyList<DocumentPage> pages, IReadOnlyList<LineMark> highlights)
+        : base(path, pages)
     {
         _bytes = bytes;
+        EmbeddedHighlights = highlights;
     }
 
     public static PdfDoc Open(string path)
     {
         var bytes = File.ReadAllBytes(path);
+
+        // Highlights this app saved into the file come out of the page and into the app, which
+        // draws (and toggles) them itself; otherwise they'd show twice and couldn't be removed.
+        List<LineMark> highlights = [];
+        if (PdfHighlights.ContainsOurs(bytes))
+        {
+            try
+            {
+                (bytes, highlights) = PdfHighlights.Extract(bytes);
+            }
+            catch (Exception)
+            {
+                // Unreadable for PDFsharp (e.g. unusual encryption): show the file as it is.
+            }
+        }
+
         var pages = new List<DocumentPage>();
         lock (Gate)
         {
@@ -45,7 +63,7 @@ public sealed class PdfDoc : Document
                 pages.Add(docPage);
             }
         }
-        return new PdfDoc(path, bytes, pages);
+        return new PdfDoc(path, bytes, pages, highlights);
     }
 
     public override BitmapSource Render(int pageIndex, double scale)

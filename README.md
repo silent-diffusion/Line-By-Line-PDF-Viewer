@@ -3,7 +3,7 @@
 A lightweight Windows PDF viewer for **line-by-line data entry**. It spotlights one or more lines of a document, dims the rest of the page, and lets you step to the next line with a global hotkey, without leaving Excel.
 
 > Repo: https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer
-> Status: **v0.6**: auto grab and smarter value picking. Installer and in-app updates since v0.5. [Download the latest release](https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer/releases/latest)
+> Status: **v0.7**: highlights. Installer and in-app updates since v0.5. [Download the latest release](https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer/releases/latest)
 
 ---
 
@@ -56,6 +56,7 @@ All rebindable in Settings.
 | Copy value of the top line (Value Grab on) | `Ctrl+Alt+C` |
 | Copy values of every line in the band (Value Grab on) | `Ctrl+Alt+Shift+C` |
 | Toggle always-on-top | `Ctrl+Alt+T` |
+| Highlight line (press again to remove) | `Ctrl+Alt+.` |
 
 > Note: some Intel graphics drivers use `Ctrl+Alt+Arrow` to rotate the screen. If that happens, turn off the driver hotkeys or rebind them in Line by Line.
 
@@ -70,6 +71,16 @@ All rebindable in Settings.
 - **Default: dollar amount only.** Optional mode copies the whole line as tab-separated cells, which fill across Excel columns when pasted.
 - **Fully off when disabled:** no chips, and the copy hotkeys aren't even registered, so other apps can use them. The toolbar button can be hidden too.
 - On pages read by OCR, the "Copied" message reminds you to check the digits.
+
+### Highlights
+- Press `Ctrl+Alt+.` to highlight the line the band is on, like a highlighter pen; press it again to remove it. Highlights stay as the band moves on, so you can see which lines are done, and they're remembered per file.
+- **Settings → Highlights:**
+  - Colour: green by default, presets or a custom `#RRGGBB`, and strength.
+  - What: the whole line (default; only the focused columns under column focus) or **just the value**, the same number Value Grab copies.
+  - Which lines: the top line of the band (default) or every line in it.
+  - **Highlight lines automatically** as the band moves forward past them (off by default).
+  - **Save highlights into the PDF file** (off by default): writes standard PDF highlight annotations so Acrobat, Edge, Chrome and other viewers show them. Off means the file is never modified. Images and scans keep their highlights in the app.
+  - **Clear all highlights** for the open document, including any saved inside the PDF.
 
 ### Window
 - **Always on top**: toggle in Settings (default: off).
@@ -145,6 +156,7 @@ The [Release workflow](.github/workflows/release.yml) runs the tests, builds a s
 | OCR | Windows.Media.Ocr (built into Windows 10/11) |
 | Global hotkeys | Win32 `RegisterHotKey` |
 | Installer + updater | Velopack, publishing to GitHub Releases |
+| Writing highlights into PDFs | PDFsharp |
 | CI / releases | GitHub Actions: tag `vX.Y.Z` → build → publish installer + update packages |
 
 Target: Windows 10/11, x64.
@@ -157,6 +169,7 @@ Target: Windows 10/11, x64.
 - **v0.4** ✅: Value Grab (dollar amount default, whole-row mode, copy one or all lines, full disable, toolbar button can be hidden)
 - **v0.5** ✅: one-click installer, Settings → Updates (check, release notes, update & restart), automatic updates, app icon
 - **v0.6** ✅: auto grab; rightmost-value pick (default) or rightmost dollar amount; OCR number repair
+- **v0.7** ✅: highlights (hotkey, colour, whole line or value, top or all lines, auto-highlight, optional saving into the PDF)
 - **Later**: batch / multi-file queue, code signing
 
 ## License

@@ -18,6 +18,7 @@
                     <RadioButton x:Name="NavBand" Content="Focus band" Style="{StaticResource NavItem}" GroupName="Nav" IsChecked="True" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavHotkeys" Content="Hotkeys" Style="{StaticResource NavItem}" GroupName="Nav" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavValueGrab" Content="Value Grab" Style="{StaticResource NavItem}" GroupName="Nav" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavHighlights" Content="Highlights" Style="{StaticResource NavItem}" GroupName="Nav" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavWindow" Content="Window" Style="{StaticResource NavItem}" GroupName="Nav" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavUpdates" Content="Updates" Style="{StaticResource NavItem}" GroupName="Nav" Checked="Nav_Checked"/>
                 </StackPanel>
@@ -171,6 +172,83 @@
                             </StackPanel>
                         </DockPanel>
                     </Border>
+                </StackPanel>
+
+                <!-- Highlights -->
+                <StackPanel x:Name="HighlightsPage" Visibility="Collapsed">
+                    <TextBlock Text="Highlights" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <TextBlock x:Name="HighlightIntro" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,16"/>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <DockPanel>
+                                <Border DockPanel.Dock="Right" Background="White" BorderBrush="#E4E4E7" BorderThickness="1" CornerRadius="6" Padding="10,6" VerticalAlignment="Center">
+                                    <Grid>
+                                        <Border x:Name="HighlightPreview" CornerRadius="2" Margin="-4,-1"/>
+                                        <TextBlock Text="Toner cartridge   4   359.96" FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+                                    </Grid>
+                                </Border>
+                                <TextBlock Text="Colour" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <WrapPanel x:Name="SwatchPanel" Margin="0,12,0,0"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <TextBlock Text="Custom" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBox x:Name="CustomColorBox" Width="96" Height="30" VerticalContentAlignment="Center" Padding="6,0"
+                                         FontFamily="{StaticResource MonoFont}" KeyDown="CustomColorBox_KeyDown"
+                                         AutomationProperties.Name="Custom highlight colour, as #RRGGBB"/>
+                                <Button Content="Use" Style="{StaticResource SecondaryButton}" Height="30" Margin="8,0,0,0" Click="CustomColor_Click"/>
+                                <TextBlock x:Name="CustomColorError" Foreground="{StaticResource DangerBrush}" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="12"/>
+                            </StackPanel>
+                            <DockPanel Margin="0,14,0,0">
+                                <TextBlock x:Name="HighlightStrengthValue" DockPanel.Dock="Right" FontWeight="SemiBold" VerticalAlignment="Center" Width="40" TextAlignment="Right"/>
+                                <TextBlock Text="Strength" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <Slider x:Name="HighlightStrength" Minimum="0.15" Maximum="0.7" SmallChange="0.05" LargeChange="0.1" TickFrequency="0.05"
+                                        IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="HighlightStrength_ValueChanged"/>
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="What to highlight" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <RadioButton x:Name="HighlightWholeLine" GroupName="HlWhat" Margin="0,0,0,6" Checked="HighlightWhat_Checked"
+                                         Content="The whole line (just the focused columns when column focus is on)"/>
+                            <RadioButton x:Name="HighlightValueOnly" GroupName="HlWhat" Checked="HighlightWhat_Checked"
+                                         Content="Just the value: the same number Value Grab copies"/>
+                            <TextBlock Text="Which lines" FontWeight="SemiBold" Margin="0,14,0,8"/>
+                            <RadioButton x:Name="HighlightTopLine" GroupName="HlWhich" Margin="0,0,0,6" Checked="HighlightWhich_Checked" Content="The top line of the band"/>
+                            <RadioButton x:Name="HighlightAllLines" GroupName="HlWhich" Checked="HighlightWhich_Checked" Content="Every line in the band"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <CheckBox x:Name="AutoHighlightSwitch" DockPanel.Dock="Right" Style="{StaticResource Switch}" VerticalAlignment="Center"
+                                      Checked="AutoHighlightSwitch_Changed" Unchecked="AutoHighlightSwitch_Changed" AutomationProperties.Name="Auto-highlight"/>
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock Text="Highlight lines automatically" FontWeight="SemiBold"/>
+                                <TextBlock Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                           Text="Every line the band moves forward past gets highlighted, so you can see what's done without pressing anything. Moving back or clicking doesn't highlight."/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <CheckBox x:Name="SaveToPdfSwitch" DockPanel.Dock="Right" Style="{StaticResource Switch}" VerticalAlignment="Center"
+                                      Checked="SaveToPdfSwitch_Changed" Unchecked="SaveToPdfSwitch_Changed" AutomationProperties.Name="Save highlights into the PDF"/>
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock Text="Save highlights into the PDF file" FontWeight="SemiBold"/>
+                                <TextBlock Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                           Text="Off: highlights are kept by Line by Line only and the file is never changed. On: they're also written into the PDF as standard highlights, so Acrobat, Edge and other viewers show them. Images and scans can't hold highlights, so theirs stay in the app."/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <DockPanel Margin="2,4,0,0">
+                        <Button x:Name="ClearHighlightsButton" DockPanel.Dock="Right" Content="Clear all highlights" Style="{StaticResource SecondaryButton}" Click="ClearHighlights_Click"/>
+                        <TextBlock x:Name="HighlightCountText" Foreground="{StaticResource SubtleTextBrush}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,16,0"/>
+                    </DockPanel>
                 </StackPanel>
 
                 <!-- Window -->

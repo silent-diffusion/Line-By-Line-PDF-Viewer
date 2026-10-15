@@ -26,6 +26,7 @@ public partial class MainWindow : Window
         public required DocumentPage Page { get; init; }
         public required Border Frame { get; init; }
         public required Image Image { get; init; }
+        public required Canvas HighlightLayer { get; init; }
         public double RenderedScale { get; set; }
     }
 
@@ -130,6 +131,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        FlushPdfHighlights();
         SavePosition();
         SaveWindowPlacement();
         _store.Save(notify: false);
@@ -189,8 +191,226 @@ public partial class MainWindow : Window
 
         RegisterHotkeys();
         UpdateOverlay();
+        DrawHighlights(); // colour or strength may have changed
+        SchedulePdfHighlights();
         if (S.OcrEnabled)
             _ = RunOcrAsync();
+    }
+
+    // ───────────────────────────── highlights ─────────────────────────────
+
+    private HighlightSet _highlights = new();
+    private DispatcherTimer? _pdfHighlightTimer;
+    private string _pdfHighlightsWritten = "";
+    private bool _pdfHighlightsWriting;
+    private bool _toldPdfSaved;
+
+    private void LoadHighlights(Document doc)
+    {
+        // A PDF that carries our highlights is the source of truth (it may have been edited elsewhere).
+        var key = SettingsStore.PositionKey(doc.FilePath);
+        if (doc.EmbeddedHighlights.Count > 0)
+        {
+            _highlights = new HighlightSet(doc.EmbeddedHighlights);
+            S.Highlights[key] = [.. _highlights.All];
+        }
+        else
+        {
+            _highlights = new HighlightSet(S.Highlights.TryGetValue(key, out var saved) ? saved : null);
+        }
+        _pdfHighlightsWritten = PdfHighlightSignature();
+    }
+
+    private Color HighlightColor()
+    {
+        try
+        {
+            return (Color)ColorConverter.ConvertFromString(S.HighlightColor);
+        }
+        catch (FormatException)
+        {
+            return Color.FromRgb(0x3D, 0xDC, 0x84);
+        }
+    }
+
+    private void DrawHighlights()
+    {
+        var brush = new SolidColorBrush(HighlightColor());
+        brush.Freeze();
+        foreach (var view in _pages)
+        {
+            view.HighlightLayer.Children.Clear();
+            foreach (var mark in _highlights.OnPage(view.Page.Index))
+            {
+                var rect = new Rectangle
+                {
+                    Width = (mark.Right - mark.Left) * Scale,
+                    Height = (mark.Bottom - mark.Top) * Scale,
+                    Fill = brush,
+                    Opacity = S.HighlightOpacity,
+                    RadiusX = 2,
+                    RadiusY = 2,
+                };
+                Canvas.SetLeft(rect, mark.Left * Scale);
+                Canvas.SetTop(rect, mark.Top * Scale);
+                view.HighlightLayer.Children.Add(rect);
+            }
+        }
+    }
+
+    /// <summary>The area to highlight on a line: the whole line (or its focused columns), or just its value.</summary>
+    private LineMark? HighlightFor(int page, TextRow row)
+    {
+        const double padX = 2, padY = 1.5;
+        if (S.HighlightValueOnly)
+        {
+            var value = ValueExtractor.Amount(row, _nav?.SpanLeft, _nav?.SpanRight, S.ValuePick);
+            if (value?.Left is not { } left || value.Right is not { } right)
+                return null;
+            return new LineMark(page, left - padX, row.Top - padY, right + padX, row.Bottom + padY);
+        }
+
+        double l = row.Left, r = row.Right;
+        if (_nav is { HasColumnFocus: true, SpanLeft: { } sl, SpanRight: { } sr })
+        {
+            var cells = row.Cells.Where(c => Math.Min(c.Right, sr) - Math.Max(c.Left, sl) >= 0.5 * (c.Right - c.Left)).ToList();
+            (l, r) = cells.Count > 0 ? (cells.Min(c => c.Left), cells.Max(c => c.Right)) : (sl, sr);
+        }
+        return new LineMark(page, l - padX, row.Top - padY, r + padX, row.Bottom + padY);
+    }
+
+    private List<LineMark> HighlightTargets(bool allLines)
+    {
+        if (_nav == null)
+            return [];
+        var rows = _nav.BandStopRows();
+        if (!allLines)
+            rows = rows.Take(1).ToList();
+        var page = _nav.Document.Pages[PageIndex];
+        return rows.Select(i => HighlightFor(PageIndex, page.Rows[i])).OfType<LineMark>().ToList();
+    }
+
+    /// <summary>Hotkey: highlight the band's line(s), or remove the highlight if they're already highlighted.</summary>
+    private void ToggleHighlight()
+    {
+        if (_nav == null)
+            return;
+        var targets = HighlightTargets(S.HighlightAllLines);
+        if (targets.Count == 0)
+        {
+            ShowToast(S.HighlightValueOnly ? "No value on this line to highlight" : "Nothing to highlight here", seconds: 1.5);
+            return;
+        }
+        var added = _highlights.Toggle(targets);
+        HighlightsChanged();
+        ShowToast(added ? "Highlighted" : "Highlight removed", seconds: 1);
+    }
+
+    /// <summary>Auto-highlight: mark every line the band is about to move past.</summary>
+    private void AutoHighlightBand()
+    {
+        if (_highlights.Add(HighlightTargets(allLines: true)))
+            HighlightsChanged();
+    }
+
+    /// <summary>Settings → Highlights → Clear: removes every highlight in the open document.</summary>
+    public void ClearHighlights()
+    {
+        if (_doc == null || _highlights.All.Count == 0)
+            return;
+        _highlights.Clear();
+        HighlightsChanged();
+        // Highlights already saved in the PDF are cleared from it too, even with saving turned off.
+        if (_doc.EmbeddedHighlights.Count > 0 || _pdfHighlightsWritten.Length > 0)
+            SchedulePdfHighlights(force: true);
+    }
+
+    public int HighlightCount => _highlights.All.Count;
+    public bool HasDocument => _doc != null;
+    public bool DocumentIsPdf => _doc is PdfDoc;
+
+    private void HighlightsChanged()
+    {
+        DrawHighlights();
+        if (_doc == null)
+            return;
+        var key = SettingsStore.PositionKey(_doc.FilePath);
+        if (_highlights.All.Count == 0)
+            S.Highlights.Remove(key);
+        else
+            S.Highlights[key] = [.. _highlights.All];
+        _store.Save(notify: false);
+        SchedulePdfHighlights();
+    }
+
+    /// <summary>What the PDF should contain right now; a change means it needs rewriting.</summary>
+    private string PdfHighlightSignature() =>
+        _highlights.All.Count == 0 ? "" :
+        $"{S.HighlightColor}|{S.HighlightOpacity:0.00}|" + string.Join(";", _highlights.All.Select(m => $"{m.Page}:{m.Left:0.#},{m.Top:0.#},{m.Right:0.#},{m.Bottom:0.#}"));
+
+    /// <summary>Writes highlights into the PDF shortly after the last change, so rapid marking doesn't rewrite the file each time.</summary>
+    private void SchedulePdfHighlights(bool force = false)
+    {
+        if (_doc is not PdfDoc || (!S.SaveHighlightsToPdf && !force) || PdfHighlightSignature() == _pdfHighlightsWritten)
+            return;
+        if (_pdfHighlightTimer == null)
+        {
+            _pdfHighlightTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
+            _pdfHighlightTimer.Tick += (_, _) => { _pdfHighlightTimer.Stop(); _ = WritePdfHighlightsAsync(); };
+        }
+        _pdfHighlightTimer.Stop();
+        _pdfHighlightTimer.Start();
+    }
+
+    private async Task WritePdfHighlightsAsync()
+    {
+        if (_doc is not PdfDoc doc)
+            return;
+        if (_pdfHighlightsWriting)
+        {
+            SchedulePdfHighlights(force: true); // try again once the current write finishes
+            return;
+        }
+        _pdfHighlightsWriting = true;
+        var signature = PdfHighlightSignature();
+        var marks = _highlights.All.ToList();
+        var color = HighlightColor();
+        var opacity = S.HighlightOpacity;
+        try
+        {
+            await Task.Run(() => PdfHighlights.Write(doc.FilePath, marks, color, opacity));
+            if (_doc == doc)
+                _pdfHighlightsWritten = signature;
+            if (!_toldPdfSaved && marks.Count > 0)
+            {
+                _toldPdfSaved = true;
+                ShowToast("Highlights saved into the PDF, so other PDF viewers show them too.", seconds: 3);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Couldn't save highlights into the PDF ({ex.Message}). It may be open in another program or protected. They're still kept in Line by Line.", seconds: 7);
+        }
+        finally
+        {
+            _pdfHighlightsWriting = false;
+        }
+    }
+
+    /// <summary>Finishes a pending PDF write before switching files or closing.</summary>
+    private void FlushPdfHighlights()
+    {
+        if (_pdfHighlightTimer is not { IsEnabled: true } || _doc is not PdfDoc doc)
+            return;
+        _pdfHighlightTimer.Stop();
+        try
+        {
+            PdfHighlights.Write(doc.FilePath, _highlights.All.ToList(), HighlightColor(), S.HighlightOpacity);
+        }
+        catch (Exception)
+        {
+            // Kept in the app's settings regardless; nothing more to do on the way out.
+        }
     }
 
     // ───────────────────────────── opening files ─────────────────────────────
@@ -215,8 +435,10 @@ public partial class MainWindow : Window
         }
 
         SavePosition();
+        FlushPdfHighlights();
         _doc = doc;
         _nav = new BandNavigator(doc) { LinesInView = S.LinesInView, Step = S.EffectiveStep };
+        LoadHighlights(doc);
         _renderGeneration++;
         FileNameText.Text = System.IO.Path.GetFileName(path);
         FileNameText.Foreground = (Brush)FindResource("TextBrush");
@@ -337,15 +559,17 @@ public partial class MainWindow : Window
         {
             var image = new Image { Stretch = Stretch.Fill };
             RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+            // Highlights sit on the page itself, so they scroll with it and show through the dimming.
+            var highlightLayer = new Canvas { IsHitTestVisible = false };
             var frame = new Border
             {
                 Background = Brushes.White,
                 Margin = new Thickness(0, 0, 0, PageGap),
-                Child = image,
+                Child = new Grid { Children = { image, highlightLayer } },
                 Cursor = Cursors.Hand,
                 Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 3, Direction = 270, Opacity = 0.14 },
             };
-            var view = new PageView { Page = page, Frame = frame, Image = image };
+            var view = new PageView { Page = page, Frame = frame, Image = image, HighlightLayer = highlightLayer };
             frame.MouseLeftButtonUp += (_, e) => PlaceBandAt(view, e.GetPosition(image));
             _pages.Add(view);
             PagesPanel.Children.Add(frame);
@@ -439,6 +663,7 @@ public partial class MainWindow : Window
         }
         _renderTimer.Stop();
         _renderTimer.Start();
+        DrawHighlights();
         Dispatcher.BeginInvoke(() => { UpdateOverlay(); EnsureBandVisible(animate: false); }, DispatcherPriority.Loaded);
     }
 
@@ -495,6 +720,8 @@ public partial class MainWindow : Window
     {
         if (_nav == null)
             return;
+        if (S.AutoHighlight)
+            AutoHighlightBand();
         if (!_nav.Next())
         {
             ShowToast("End of document", seconds: 1.5);
@@ -1145,6 +1372,7 @@ public partial class MainWindow : Window
             case HotkeyAction.ToggleAlwaysOnTop: SetAlwaysOnTop(!S.AlwaysOnTop); break;
             case HotkeyAction.CopyValue: CopyValues(all: false); break;
             case HotkeyAction.CopyAllValues: CopyValues(all: true); break;
+            case HotkeyAction.HighlightLine: ToggleHighlight(); break;
         }
     }
 

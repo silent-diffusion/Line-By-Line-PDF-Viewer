@@ -13,7 +13,9 @@ public partial class SettingsWindow : Window
     private readonly SettingsStore _store;
     private readonly MainWindow _main;
     private readonly Dictionary<HotkeyAction, (TextBox Box, TextBlock Status)> _hotkeyRows = new();
-    private bool _loading;
+    // True until the first Refresh: building the window fires change events (a slider snapping to
+    // its minimum, say) that must not be saved as if the user had made them.
+    private bool _loading = true;
 
     private AppSettings S => _store.Settings;
 
@@ -29,6 +31,7 @@ public partial class SettingsWindow : Window
         ShowUpdateIdle();
 
         BuildHotkeyRows();
+        BuildSwatches();
         Refresh();
         _store.Changed += Refresh;
         Closed += (_, _) => _store.Changed -= Refresh;
@@ -64,6 +67,7 @@ public partial class SettingsWindow : Window
         AutoGrabTop.IsChecked = !S.AutoGrabAllLines;
         AutoGrabAll.IsChecked = S.AutoGrabAllLines;
         AutoGrabScopePanel.IsEnabled = S.ValueGrabEnabled && S.AutoGrab;
+        RefreshHighlights();
         ValueGrabHint.Text = S.ValueGrabEnabled
             ? $"On. {S.GetHotkey(HotkeyAction.CopyValue).ToDisplayString()} copies the top line's value; {S.GetHotkey(HotkeyAction.CopyAllValues).ToDisplayString()} copies every line in the band, one per row. You can also click a chip."
             : "Off. No chips, and the copy hotkeys aren't registered, so they're free for other apps.";
@@ -78,6 +82,7 @@ public partial class SettingsWindow : Window
         BandPage.Visibility = NavBand.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         HotkeysPage.Visibility = NavHotkeys.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         ValueGrabPage.Visibility = NavValueGrab.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        HighlightsPage.Visibility = NavHighlights.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         WindowPage.Visibility = NavWindow.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         UpdatesPage.Visibility = NavUpdates.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -272,6 +277,153 @@ public partial class SettingsWindow : Window
             return;
         S.AutoUpdate = AutoUpdateSwitch.IsChecked == true;
         _store.Save();
+    }
+
+    // ───────────────────────────── highlights ─────────────────────────────
+
+    private static readonly (string Name, string Hex)[] Swatches =
+    [
+        ("Green", "#3DDC84"), ("Yellow", "#FFD60A"), ("Blue", "#4DA3FF"), ("Pink", "#FF6FB5"), ("Orange", "#FF9F43"),
+    ];
+
+    private readonly List<(Border Ring, string Hex)> _swatchRings = [];
+
+    private void BuildSwatches()
+    {
+        foreach (var (name, hex) in Swatches)
+        {
+            var color = (Color)ColorConverter.ConvertFromString(hex);
+            var ring = new Border
+            {
+                Width = 34, Height = 34, CornerRadius = new CornerRadius(17), BorderThickness = new Thickness(2),
+                Child = new Border { Width = 24, Height = 24, CornerRadius = new CornerRadius(12), Background = new SolidColorBrush(color) },
+            };
+            var button = new Button
+            {
+                Content = ring,
+                ToolTip = name,
+                Margin = new Thickness(0, 0, 8, 0),
+                Cursor = Cursors.Hand,
+                Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
+                    "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' TargetType='Button'><ContentPresenter/></ControlTemplate>"),
+            };
+            System.Windows.Automation.AutomationProperties.SetName(button, $"{name} highlight");
+            button.Click += (_, _) => SetHighlightColor(hex);
+            SwatchPanel.Children.Add(button);
+            _swatchRings.Add((ring, hex));
+        }
+    }
+
+    private void RefreshHighlights()
+    {
+        var hotkey = S.GetHotkey(HotkeyAction.HighlightLine).ToDisplayString();
+        HighlightIntro.Text = $"Press {hotkey} to highlight the line the band is on, like a highlighter pen; press it again to remove it. Highlights stay as you move on, so you can see which lines are done.";
+        foreach (var (ring, hex) in _swatchRings)
+            ring.BorderBrush = string.Equals(hex, S.HighlightColor, StringComparison.OrdinalIgnoreCase)
+                ? (Brush)FindResource("TextBrush") : Brushes.Transparent;
+        if (!CustomColorBox.IsKeyboardFocused)
+            CustomColorBox.Text = S.HighlightColor;
+        CustomColorError.Text = "";
+        try
+        {
+            HighlightPreview.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(S.HighlightColor)) { Opacity = S.HighlightOpacity };
+        }
+        catch (FormatException)
+        {
+            HighlightPreview.Background = Brushes.Transparent;
+        }
+        HighlightStrength.Value = S.HighlightOpacity;
+        HighlightStrengthValue.Text = $"{Math.Round(S.HighlightOpacity * 100)}%";
+        HighlightWholeLine.IsChecked = !S.HighlightValueOnly;
+        HighlightValueOnly.IsChecked = S.HighlightValueOnly;
+        HighlightTopLine.IsChecked = !S.HighlightAllLines;
+        HighlightAllLines.IsChecked = S.HighlightAllLines;
+        AutoHighlightSwitch.IsChecked = S.AutoHighlight;
+        SaveToPdfSwitch.IsChecked = S.SaveHighlightsToPdf;
+
+        var count = _main.HighlightCount;
+        ClearHighlightsButton.IsEnabled = count > 0;
+        HighlightCountText.Text = !_main.HasDocument ? "Open a document to see its highlights."
+            : count == 0 ? "No highlights in this document."
+            : $"{count} {(count == 1 ? "highlight" : "highlights")} in this document.";
+    }
+
+    private void SetHighlightColor(string hex)
+    {
+        S.HighlightColor = hex.ToUpperInvariant();
+        _store.Save();
+    }
+
+    private void CustomColor_Click(object sender, RoutedEventArgs e) => ApplyCustomColor();
+
+    private void CustomColorBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+            ApplyCustomColor();
+    }
+
+    private void ApplyCustomColor()
+    {
+        var text = CustomColorBox.Text.Trim();
+        if (!text.StartsWith('#'))
+            text = "#" + text;
+        if (!System.Text.RegularExpressions.Regex.IsMatch(text, "^#[0-9A-Fa-f]{6}$"))
+        {
+            CustomColorError.Text = "Use the form #RRGGBB, e.g. #3DDC84";
+            return;
+        }
+        SetHighlightColor(text);
+    }
+
+    private void HighlightStrength_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || HighlightStrengthValue == null)
+            return;
+        S.HighlightOpacity = Math.Round(e.NewValue, 2);
+        _store.Save();
+    }
+
+    private void HighlightWhat_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_loading || HighlightValueOnly == null)
+            return;
+        S.HighlightValueOnly = HighlightValueOnly.IsChecked == true;
+        _store.Save();
+    }
+
+    private void HighlightWhich_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_loading || HighlightAllLines == null)
+            return;
+        S.HighlightAllLines = HighlightAllLines.IsChecked == true;
+        _store.Save();
+    }
+
+    private void AutoHighlightSwitch_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        S.AutoHighlight = AutoHighlightSwitch.IsChecked == true;
+        _store.Save();
+    }
+
+    private void SaveToPdfSwitch_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        S.SaveHighlightsToPdf = SaveToPdfSwitch.IsChecked == true;
+        _store.Save(); // the main window writes the open PDF's highlights right away
+    }
+
+    private void ClearHighlights_Click(object sender, RoutedEventArgs e)
+    {
+        var count = _main.HighlightCount;
+        var inPdf = _main.DocumentIsPdf ? " Any of them saved inside the PDF are removed from it too." : "";
+        if (MessageBox.Show(this, $"Remove all {count} highlights from this document?{inPdf}", "Clear highlights",
+                MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
+            return;
+        _main.ClearHighlights();
+        RefreshHighlights();
     }
 
     // ───────────────────────────── window ─────────────────────────────

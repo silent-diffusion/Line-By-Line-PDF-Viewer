@@ -12,6 +12,7 @@ public enum HotkeyAction
     ToggleAlwaysOnTop,
     CopyValue,
     CopyAllValues,
+    HighlightLine,
 }
 
 /// <summary>A key plus modifiers, stored in settings as text like "Ctrl+Alt+Down".</summary>
@@ -27,6 +28,7 @@ public readonly record struct Hotkey(ModifierKeys Modifiers, Key Key)
         [HotkeyAction.ToggleAlwaysOnTop] = new(ModifierKeys.Control | ModifierKeys.Alt, Key.T),
         [HotkeyAction.CopyValue] = new(ModifierKeys.Control | ModifierKeys.Alt, Key.C),
         [HotkeyAction.CopyAllValues] = new(ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Shift, Key.C),
+        [HotkeyAction.HighlightLine] = new(ModifierKeys.Control | ModifierKeys.Alt, Key.OemPeriod),
     };
 
     /// <summary>Hotkeys that only exist while Value Grab is on.</summary>
@@ -43,6 +45,7 @@ public readonly record struct Hotkey(ModifierKeys Modifiers, Key Key)
         HotkeyAction.ToggleAlwaysOnTop => "Toggle always on top",
         HotkeyAction.CopyValue => "Copy value (top line)",
         HotkeyAction.CopyAllValues => "Copy values (all lines in band)",
+        HotkeyAction.HighlightLine => "Highlight line (press again to remove)",
         _ => action.ToString(),
     };
 
@@ -113,6 +116,8 @@ public readonly record struct Hotkey(ModifierKeys Modifiers, Key Key)
         Key.Right => "→",
         Key.PageDown => "PgDn",
         Key.PageUp => "PgUp",
+        Key.OemPeriod => ".",
+        Key.OemComma => ",",
         >= Key.D0 and <= Key.D9 => ((int)(key - Key.D0)).ToString(),
         _ => key.ToString(),
     };
