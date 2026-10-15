@@ -86,6 +86,26 @@ public class VisualSmokeTests
         Save(window, Path.Combine(outDir, "1b-column-focus.png"));
         typeof(MainWindow).GetMethod("ClearColumnFocus", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
 
+        // Clicking the page jumps the band, except when the click only brings the window to the front.
+        var pages = (System.Collections.IList)typeof(MainWindow).GetField("_pages", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+        var placeBandAt = typeof(MainWindow).GetMethod("PlaceBandAt", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var wndProc = typeof(MainWindow).GetMethod("WndProc", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var mouseDown = typeof(MainWindow).GetMethod("Window_PreviewMouseLeftButtonDown", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        void Click(bool activating, double yPts)
+        {
+            if (activating)
+                wndProc.Invoke(window, [IntPtr.Zero, 0x0021, IntPtr.Zero, IntPtr.Zero, false]);
+            mouseDown.Invoke(window, [window, new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)]);
+            var scale = (double)typeof(MainWindow).GetProperty("Scale", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+            placeBandAt.Invoke(window, [pages[0], new Point(100, yPts * scale)]);
+        }
+        var payRow = nav.Document.Pages[0].Rows.First(r => r.Text.Contains("PA-2011"));
+        var bandRowBefore = nav.Row;
+        Click(activating: true, payRow.Center);
+        Assert.Equal(bandRowBefore, nav.Row); // activation click: band stays put
+        Click(activating: false, payRow.Center);
+        Assert.Contains("PA-2011", nav.Document.Pages[0].Rows[nav.Row].Text); // normal click: band jumps
+
         window.Width = 1080;
         window.Height = 1872;
         Pump(1500);

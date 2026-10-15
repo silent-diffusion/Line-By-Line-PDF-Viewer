@@ -97,7 +97,7 @@ All rebindable in Settings.
 
 - **Open** a PDF or a scanned image with the file button, `Ctrl+O`, or drag it onto the window. Scans are read with OCR in the background (about a second per page); the band snaps to real lines as soon as each page is done.
 - **Move the band** with `Ctrl+Alt+↓` / `Ctrl+Alt+↑` from any app, or with `↓`/`↑` (also `J`/`K`) while Line by Line has focus.
-- **Place the band** by clicking any line, or by dragging the band itself. It snaps to the nearest line.
+- **Place the band** by clicking any line, or by dragging the band itself. It snaps to the nearest line. A click that only brings the window to the front is ignored.
 - **Resize the band** by dragging its edges (handles appear on hover). Top and bottom change how many lines it covers.
 - **Column focus**: drag the band's left or right edge to narrow it to some columns, e.g. Qty → Amount. The edge snaps to the nearest column. From then on the band stops only on lines with the same layout as the one it's on, so it skips wrapped descriptions, table headers and notes, and carries on into the same table on the next page. A dashed outline shows those lines. Double-click the band, press `Esc`, or click **Column focus ✕** in the bottom bar to go back to full-width lines.
 - **Band size and step**: the `Band` controls in the top bar, or Settings → Focus band.

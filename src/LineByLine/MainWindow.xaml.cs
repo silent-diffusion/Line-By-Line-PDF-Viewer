@@ -87,7 +87,9 @@ public partial class MainWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        _hotkeys = new HotkeyManager(new WindowInteropHelper(this).Handle);
+        var hwnd = new WindowInteropHelper(this).Handle;
+        HwndSource.FromHwnd(hwnd)?.AddHook(WndProc);
+        _hotkeys = new HotkeyManager(hwnd);
         _hotkeys.Pressed += OnHotkey;
         RegisterHotkeys();
         if (S.AutoUpdate)
@@ -544,10 +546,37 @@ public partial class MainWindow : Window
         CopyToClipboard(S.AutoGrabAllLines ? values.Select(v => v.Value).ToList() : [values[0].Value]);
     }
 
+    // ───────────────────────────── activation clicks ─────────────────────────────
+
+    private const int WmMouseActivate = 0x0021;
+    private bool _mouseActivatePending; // Windows said a click is bringing this window forward
+    private bool _isActivationClick;    // the current click is that click
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        // Sent only when the window is behind another one and gets clicked, right before the click itself.
+        if (msg == WmMouseActivate)
+            _mouseActivatePending = true;
+        return IntPtr.Zero;
+    }
+
+    private void Window_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // Every click decides afresh, so a flag left over from a click elsewhere can't leak into the next one.
+        _isActivationClick = _mouseActivatePending;
+        _mouseActivatePending = false;
+    }
+
     private void PlaceBandAt(PageView view, Point pointInImage)
     {
         if (_nav == null || _drag != DragMode.None)
             return;
+        // A click that only brings Line by Line to the front shouldn't move the band.
+        if (_isActivationClick)
+        {
+            _isActivationClick = false;
+            return;
+        }
         var row = BandNavigator.NearestRow(view.Page, pointInImage.Y / Scale);
         if (row < 0)
             return;
