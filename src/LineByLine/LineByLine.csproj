@@ -12,7 +12,7 @@
     <AssemblyName>LineByLine</AssemblyName>
     <RootNamespace>LineByLine</RootNamespace>
     <Product>Line by Line</Product>
-    <Version>0.6.0</Version>
+    <Version>0.6.1</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\..\assets\app.ico</ApplicationIcon>
     <!-- Program.Main runs Velopack's install/update hooks before WPF starts. -->

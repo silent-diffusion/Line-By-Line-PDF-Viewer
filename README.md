@@ -1,6 +1,6 @@
 # Line by Line
 
-A lightweight Windows PDF viewer for **line-by-line data entry**. It spotlights one or more lines of an invoice (or any document), dims the rest of the page, and lets you step to the next line with a global hotkey, without leaving Excel.
+A lightweight Windows PDF viewer for **line-by-line data entry**. It spotlights one or more lines of a document, dims the rest of the page, and lets you step to the next line with a global hotkey, without leaving Excel.
 
 > Repo: https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer
 > Status: **v0.6**: auto grab and smarter value picking. Installer and in-app updates since v0.5. [Download the latest release](https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer/releases/latest)
@@ -9,9 +9,9 @@ A lightweight Windows PDF viewer for **line-by-line data entry**. It spotlights 
 
 ## Why it exists
 
-Typing invoice line items into a spreadsheet means constantly switching between the PDF and Excel and finding your place again each time. Line by Line keeps your place for you:
+Typing a document's lines into a spreadsheet means constantly switching between the PDF and Excel and finding your place again each time. Line by Line keeps your place for you:
 
-1. Open an invoice. A **focus band** sits across the first line item.
+1. Open a document. A **focus band** sits across the first line.
 2. Read it, switch to Excel, and type it in.
 3. Press **Ctrl+Alt+Down** from inside Excel. The band moves to the next line.
 
@@ -19,7 +19,7 @@ You never click back into the viewer.
 
 ## Use cases
 
-- **Accounts payable data entry**: the primary use. Vendor invoices go line by line into a spreadsheet or ERP.
+- **Data entry**: the primary use. Bills, orders and statements go line by line into a spreadsheet or ERP.
 - **Reconciliation**: compare bank or credit card statements against a ledger, one transaction at a time.
 - **Auditing and checking**: compare a PDF against an existing spreadsheet row by row.
 - **Packing slips and POs**: check received quantities against what was ordered.
@@ -38,7 +38,7 @@ You never click back into the viewer.
 - **Snaps to real text lines**: the band follows the document's actual rows, not a fixed pixel height, so uneven row spacing is handled. A fixed-height mode is the fallback for messy layouts.
 - **Grab, drag and resize**: the band can be dragged anywhere and resized on all edges, including **width** (to focus one column or table). It snaps to the nearest line.
 - **Smart next/previous**: after you resize or reposition the band, the app works out what you're focused on (e.g. the line-items table, or a certain column span) and moves *within that region*. It skips to the next matching row instead of blindly moving down by a fixed amount.
-- **Remembers your place** in each file, so reopening an invoice resumes on the same line.
+- **Remembers your place** in each file, so reopening a document resumes on the same line.
 
 ### Line detection
 - **Digital PDFs**: text positions are read straight from the PDF, so detection is exact and instant.
@@ -88,7 +88,7 @@ All rebindable in Settings.
 ### Updates (Settings → Updates)
 - **Check for Updates** button: checks the latest GitHub release.
   - If one exists, the app shows the **new version number and its release notes** (a short description of what changed) and asks **Update & restart now** or **Later**.
-- **Automatic updates** switch (off by default): when on, the app checks GitHub every time it opens and downloads any new version in the background. If no invoice is open yet, it installs and restarts right away; otherwise it installs quietly when you close the app, so it never interrupts an invoice in progress.
+- **Automatic updates** switch (off by default): when on, the app checks GitHub every time it opens and downloads any new version in the background. If no document is open yet, it installs and restarts right away; otherwise it installs quietly when you close the app, so it never interrupts your work.
 - Updates are delta packages, so they're small and fast.
 
 ---
@@ -118,7 +118,7 @@ dotnet run --project src/LineByLine
 dotnet test
 ```
 
-`samples/make_sample_invoice.py` regenerates `samples/sample-invoice.pdf`, the test invoice (fictional data). To save screenshots of the real window in landscape, portrait and Settings, set `LBL_SCREENSHOT_DIR` to a folder and run `dotnet test --filter Category=Visual`.
+`samples/make_sample_invoice.py` regenerates `samples/sample-invoice.pdf`, the test document (fictional data). To save screenshots of the real window in landscape, portrait and Settings, set `LBL_SCREENSHOT_DIR` to a folder and run `dotnet test --filter Category=Visual`.
 
 ## Releasing a new version
 
