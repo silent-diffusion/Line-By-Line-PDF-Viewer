@@ -1,0 +1,47 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Dark theme. Keys must match the other theme file; generated from one table so they can't drift. -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#5B9BFF"/>  <!-- Focus band, primary buttons, selection -->
+    <SolidColorBrush x:Key="AccentDarkBrush" Color="#9CC2FF"/>  <!-- Text and icons on AccentSoft; links -->
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#1F2B40"/>  <!-- Selected/on state of toggles and the page rail -->
+    <SolidColorBrush x:Key="OnAccentBrush" Color="#0E1B2E"/>  <!-- Text on AccentBrush -->
+    <SolidColorBrush x:Key="ChromeBrush" Color="#1B1C1F"/>  <!-- Top bar and sidebar -->
+    <SolidColorBrush x:Key="ChromeBorderBrush" Color="#2A2C30"/>
+    <SolidColorBrush x:Key="WorkspaceBrush" Color="#26272B"/>  <!-- Behind the pages -->
+    <SolidColorBrush x:Key="SegmentBrush" Color="#2A2C31"/>  <!-- Band lines/step segment -->
+    <SolidColorBrush x:Key="SegmentPillBrush" Color="#3A3C42"/>  <!-- The raised pill inside the segment -->
+    <SolidColorBrush x:Key="TextBrush" Color="#E6E7EA"/>
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#B0B4BB"/>
+    <SolidColorBrush x:Key="SubtleTextBrush" Color="#8D929A"/>
+    <SolidColorBrush x:Key="HoverBrush" Color="#2E3035"/>
+    <SolidColorBrush x:Key="PressedBrush" Color="#383A40"/>
+    <SolidColorBrush x:Key="HudBrush" Color="#2C2E33"/>  <!-- Bottom pill, toasts -->
+    <SolidColorBrush x:Key="HudButtonBrush" Color="#3A3C42"/>
+    <SolidColorBrush x:Key="HudTextBrush" Color="#E9EAED"/>
+    <SolidColorBrush x:Key="HudMutedBrush" Color="#B4B7BE"/>
+    <SolidColorBrush x:Key="HudSeparatorBrush" Color="#46484E"/>
+    <SolidColorBrush x:Key="DangerBrush" Color="#FF8A80"/>
+    <SolidColorBrush x:Key="LogoLineBrush" Color="#6B7078"/>  <!-- Grey lines in the logo -->
+    <SolidColorBrush x:Key="GripBrush" Color="#8D929A"/>  <!-- Band grip dots -->
+    <SolidColorBrush x:Key="HandleFillBrush" Color="#1B1C1F"/>  <!-- Band resize handles -->
+    <SolidColorBrush x:Key="TileBrush" Color="#2C2E33"/>  <!-- Empty-state logo tile -->
+    <SolidColorBrush x:Key="WindowBrush" Color="#1B1C1F"/>  <!-- Settings window background -->
+    <SolidColorBrush x:Key="CardBrush" Color="#232428"/>  <!-- Settings cards -->
+    <SolidColorBrush x:Key="CardBorderBrush" Color="#2E3035"/>
+    <SolidColorBrush x:Key="NavHoverBrush" Color="#26282C"/>
+    <SolidColorBrush x:Key="NavSelectedBrush" Color="#2C2E33"/>
+    <SolidColorBrush x:Key="ButtonBrush" Color="#2A2C31"/>  <!-- Secondary buttons -->
+    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#3A3C41"/>
+    <SolidColorBrush x:Key="ButtonHoverBrush" Color="#33353B"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#2A2C31"/>  <!-- Text boxes -->
+    <SolidColorBrush x:Key="InputBorderBrush" Color="#46484E"/>
+    <SolidColorBrush x:Key="SwitchOffBrush" Color="#4A4D55"/>
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#5A5D64"/>
+    <SolidColorBrush x:Key="ChipBrush" Color="#2A2C31"/>  <!-- Value Grab chips beside the band -->
+    <SolidColorBrush x:Key="ChipBorderBrush" Color="#3A3C41"/>
+    <SolidColorBrush x:Key="KbdBrush" Color="#2A2C31"/>  <!-- Keyboard-shortcut hints -->
+    <SolidColorBrush x:Key="KbdBorderBrush" Color="#46484E"/>
+    <SolidColorBrush x:Key="UpdateCardBrush" Color="#1F2633"/>  <!-- "Update available" card -->
+    <SolidColorBrush x:Key="UpdateCardBorderBrush" Color="#34507A"/>
+    <SolidColorBrush x:Key="UpdateCardLabelBrush" Color="#9FB4D6"/>
+</ResourceDictionary>

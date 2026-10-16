@@ -21,13 +21,13 @@ public sealed class HotkeyManager : IDisposable
     private readonly IntPtr _hwnd;
     private readonly HwndSource _source;
     private readonly Dictionary<int, HotkeyAction> _registered = new();
-    private IReadOnlyDictionary<HotkeyAction, Hotkey> _current = new Dictionary<HotkeyAction, Hotkey>();
+    private IReadOnlyList<(HotkeyAction Action, Hotkey Hotkey)> _current = [];
     private int _suspendCount;
 
     public event Action<HotkeyAction>? Pressed;
 
-    /// <summary>Hotkeys that Windows refused, usually because another app already owns them.</summary>
-    public IReadOnlyList<HotkeyAction> Failed { get; private set; } = [];
+    /// <summary>Shortcuts that Windows refused, usually because another app already owns them.</summary>
+    public IReadOnlyList<(HotkeyAction Action, Hotkey Hotkey)> Failed { get; private set; } = [];
 
     public HotkeyManager(IntPtr hwnd)
     {
@@ -36,9 +36,9 @@ public sealed class HotkeyManager : IDisposable
         _source.AddHook(WndProc);
     }
 
-    public void Apply(IReadOnlyDictionary<HotkeyAction, Hotkey> hotkeys)
+    public void Apply(IEnumerable<(HotkeyAction Action, Hotkey Hotkey)> hotkeys)
     {
-        _current = hotkeys;
+        _current = hotkeys.ToList();
         if (_suspendCount == 0)
             RegisterCurrent();
     }
@@ -59,13 +59,13 @@ public sealed class HotkeyManager : IDisposable
     private void RegisterCurrent()
     {
         UnregisterAll();
-        var failed = new List<HotkeyAction>();
+        var failed = new List<(HotkeyAction, Hotkey)>();
         var id = 1;
         foreach (var (action, hotkey) in _current)
         {
             if (!hotkey.IsValidGlobal)
             {
-                failed.Add(action);
+                failed.Add((action, hotkey));
                 continue;
             }
 
@@ -73,7 +73,7 @@ public sealed class HotkeyManager : IDisposable
             if (RegisterHotKey(_hwnd, id, ToNative(hotkey.Modifiers), vk))
                 _registered[id] = action;
             else
-                failed.Add(action);
+                failed.Add((action, hotkey));
             id++;
         }
         Failed = failed;

@@ -79,6 +79,7 @@ public partial class MainWindow : Window
         _scrollTimer.Tick += ScrollTimer_Tick;
 
         RestoreWindowPlacement();
+        ThemeManager.Changed += OnThemeChanged;
         _store.Changed += ApplySettings;
         ApplySettings();
     }
@@ -90,6 +91,7 @@ public partial class MainWindow : Window
         base.OnSourceInitialized(e);
         var hwnd = new WindowInteropHelper(this).Handle;
         HwndSource.FromHwnd(hwnd)?.AddHook(WndProc);
+        ThemeManager.ApplyTitleBar(this);
         _hotkeys = new HotkeyManager(hwnd);
         _hotkeys.Pressed += OnHotkey;
         RegisterHotkeys();
@@ -144,11 +146,9 @@ public partial class MainWindow : Window
         if (_hotkeys == null)
             return;
         // Copy hotkeys exist only while Value Grab is on, so it can be switched off completely.
-        _hotkeys.Apply(S.AllHotkeys()
-            .Where(kv => S.ValueGrabEnabled || !Hotkey.IsValueGrabAction(kv.Key))
-            .ToDictionary(kv => kv.Key, kv => kv.Value));
+        _hotkeys.Apply(S.AllBindings().Where(b => S.ValueGrabEnabled || !Hotkey.IsValueGrabAction(b.Action)));
         // Settings re-register hotkeys on every change; only speak up when something newly fails.
-        var failed = _hotkeys.Failed.Select(a => S.GetHotkey(a).ToDisplayString()).ToHashSet();
+        var failed = _hotkeys.Failed.Select(f => f.Hotkey.ToDisplayString()).ToHashSet();
         if (failed.Count > 0 && !failed.SetEquals(_reportedHotkeyFailures))
         {
             var names = string.Join(", ", failed);
@@ -163,8 +163,16 @@ public partial class MainWindow : Window
     /// <summary>Lets the settings window pause hotkeys while it records a new shortcut.</summary>
     public HotkeyManager? Hotkeys => _hotkeys;
 
+    /// <summary>Things drawn in code hold on to brushes, so redraw them in the new colours.</summary>
+    private void OnThemeChanged()
+    {
+        UpdatePageIndicators();
+        UpdateOverlay();
+    }
+
     private void ApplySettings()
     {
+        ThemeManager.SetMode(S.Theme);
         Topmost = S.AlwaysOnTop;
         PinToggle.IsChecked = S.AlwaysOnTop;
         PinIcon.Text = S.AlwaysOnTop ? "" : ""; // pinned / pin glyphs
@@ -441,7 +449,7 @@ public partial class MainWindow : Window
         LoadHighlights(doc);
         _renderGeneration++;
         FileNameText.Text = System.IO.Path.GetFileName(path);
-        FileNameText.Foreground = (Brush)FindResource("TextBrush");
+        FileNameText.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
         Title = $"{System.IO.Path.GetFileName(path)} · Line by Line";
         EmptyState.Visibility = Visibility.Collapsed;
         Hud.Visibility = Visibility.Visible;
@@ -970,16 +978,19 @@ public partial class MainWindow : Window
         var content = new StackPanel { Orientation = Orientation.Horizontal, Children = { text, icon } };
         if (hint != null)
         {
-            content.Children.Add(new Border
+            var hintText = new TextBlock { Text = hint, FontSize = 11 };
+            hintText.SetResourceReference(TextBlock.ForegroundProperty, "MutedTextBrush");
+            var kbd = new Border
             {
                 Margin = new Thickness(10, 0, 0, 0),
                 Padding = new Thickness(5, 0, 5, 1),
                 CornerRadius = new CornerRadius(4),
                 BorderThickness = new Thickness(1),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0xC9, 0xCA, 0xCE)),
-                Background = new SolidColorBrush(Color.FromRgb(0xF6, 0xF6, 0xF7)),
-                Child = new TextBlock { Text = hint, FontSize = 11, Foreground = (Brush)FindResource("MutedTextBrush") },
-            });
+                Child = hintText,
+            };
+            kbd.SetResourceReference(Border.BorderBrushProperty, "KbdBorderBrush");
+            kbd.SetResourceReference(Border.BackgroundProperty, "KbdBrush");
+            content.Children.Add(kbd);
         }
         var chip = new Button
         {

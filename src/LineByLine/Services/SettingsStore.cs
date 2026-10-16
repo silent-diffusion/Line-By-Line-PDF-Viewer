@@ -42,6 +42,9 @@ public sealed class AppSettings
 
     public double DimOpacity { get; set; } = 0.55;
     public bool AlwaysOnTop { get; set; }
+
+    /// <summary>Light, dark, or follow Windows (default).</summary>
+    public AppTheme Theme { get; set; } = AppTheme.System;
     public bool RememberPosition { get; set; } = true;
 
     /// <summary>Read scanned pages and images with Windows OCR.</summary>
@@ -83,6 +86,9 @@ public sealed class AppSettings
     /// <summary>Check GitHub on every start and install new versions automatically.</summary>
     public bool AutoUpdate { get; set; }
     public Dictionary<string, string> Hotkeys { get; set; } = new();
+
+    /// <summary>Second shortcuts. An empty string means the user cleared it.</summary>
+    public Dictionary<string, string> SecondHotkeys { get; set; } = new();
     public Dictionary<string, FilePosition> Positions { get; set; } = new();
     public WindowPlacement? Window { get; set; }
 
@@ -97,6 +103,27 @@ public sealed class AppSettings
 
     public IReadOnlyDictionary<HotkeyAction, Hotkey> AllHotkeys() =>
         Enum.GetValues<HotkeyAction>().ToDictionary(a => a, GetHotkey);
+
+    public Hotkey? GetSecondHotkey(HotkeyAction action)
+    {
+        if (SecondHotkeys.TryGetValue(action.ToString(), out var text))
+            return Hotkey.TryParse(text, out var hk) ? hk : null; // "" = cleared
+        return Hotkey.SecondDefaults.TryGetValue(action, out var fallback) ? fallback : null;
+    }
+
+    public void SetSecondHotkey(HotkeyAction action, Hotkey? hotkey) =>
+        SecondHotkeys[action.ToString()] = hotkey?.ToStorageString() ?? "";
+
+    /// <summary>Every shortcut to register: each action's main one, plus its second one if it has one.</summary>
+    public IEnumerable<(HotkeyAction Action, Hotkey Hotkey)> AllBindings()
+    {
+        foreach (var action in Enum.GetValues<HotkeyAction>())
+        {
+            yield return (action, GetHotkey(action));
+            if (GetSecondHotkey(action) is { } second)
+                yield return (action, second);
+        }
+    }
 }
 
 /// <summary>Loads and saves settings as JSON in %AppData%\LineByLine.</summary>

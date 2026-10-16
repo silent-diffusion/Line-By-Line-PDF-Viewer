@@ -12,7 +12,7 @@ public partial class SettingsWindow : Window
 {
     private readonly SettingsStore _store;
     private readonly MainWindow _main;
-    private readonly Dictionary<HotkeyAction, (TextBox Box, TextBlock Status)> _hotkeyRows = new();
+    private readonly Dictionary<HotkeyAction, (TextBox Box, TextBox Second, TextBlock Status)> _hotkeyRows = new();
     // True until the first Refresh: building the window fires change events (a slider snapping to
     // its minimum, say) that must not be saved as if the user had made them.
     private bool _loading = true;
@@ -34,7 +34,13 @@ public partial class SettingsWindow : Window
         BuildSwatches();
         Refresh();
         _store.Changed += Refresh;
-        Closed += (_, _) => _store.Changed -= Refresh;
+        ThemeManager.Changed += Refresh;
+        SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
+        Closed += (_, _) =>
+        {
+            _store.Changed -= Refresh;
+            ThemeManager.Changed -= Refresh;
+        };
     }
 
     private void Refresh()
@@ -68,6 +74,10 @@ public partial class SettingsWindow : Window
         AutoGrabAll.IsChecked = S.AutoGrabAllLines;
         AutoGrabScopePanel.IsEnabled = S.ValueGrabEnabled && S.AutoGrab;
         RefreshHighlights();
+        ThemeSystem.IsChecked = S.Theme == AppTheme.System;
+        ThemeLight.IsChecked = S.Theme == AppTheme.Light;
+        ThemeDark.IsChecked = S.Theme == AppTheme.Dark;
+        ThemeSystemNow.Text = $" (currently {(ThemeManager.SystemPrefersDark() ? "dark" : "light")})";
         ValueGrabHint.Text = S.ValueGrabEnabled
             ? $"On. {S.GetHotkey(HotkeyAction.CopyValue).ToDisplayString()} copies the top line's value; {S.GetHotkey(HotkeyAction.CopyAllValues).ToDisplayString()} copies every line in the band, one per row. You can also click a chip."
             : "Off. No chips, and the copy hotkeys aren't registered, so they're free for other apps.";
@@ -83,6 +93,7 @@ public partial class SettingsWindow : Window
         HotkeysPage.Visibility = NavHotkeys.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         ValueGrabPage.Visibility = NavValueGrab.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         HighlightsPage.Visibility = NavHighlights.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        AppearancePage.Visibility = NavAppearance.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         WindowPage.Visibility = NavWindow.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         UpdatesPage.Visibility = NavUpdates.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -279,6 +290,16 @@ public partial class SettingsWindow : Window
         _store.Save();
     }
 
+    // ───────────────────────────── appearance ─────────────────────────────
+
+    private void Theme_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_loading || ThemeDark == null)
+            return;
+        S.Theme = ThemeDark.IsChecked == true ? AppTheme.Dark : ThemeLight.IsChecked == true ? AppTheme.Light : AppTheme.System;
+        _store.Save();
+    }
+
     // ───────────────────────────── highlights ─────────────────────────────
 
     private static readonly (string Name, string Hex)[] Swatches =
@@ -448,61 +469,91 @@ public partial class SettingsWindow : Window
 
     // ───────────────────────────── hotkeys ─────────────────────────────
 
+    private static Grid HotkeyGrid(Thickness margin)
+    {
+        var grid = new Grid { Margin = margin };
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+        return grid;
+    }
+
+    private TextBox HotkeyBox(HotkeyAction action, bool second)
+    {
+        var box = new TextBox
+        {
+            IsReadOnly = true,
+            IsReadOnlyCaretVisible = false,
+            Cursor = Cursors.Hand,
+            Height = 32,
+            Padding = new Thickness(8, 0, 8, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            FontWeight = second ? FontWeights.Normal : FontWeights.SemiBold,
+            ToolTip = second ? "Click, then press a second shortcut. Backspace removes it." : "Click, then press a new shortcut",
+            Tag = (action, second),
+        };
+        System.Windows.Automation.AutomationProperties.SetName(box, Hotkey.Describe(action) + (second ? ", second shortcut" : ""));
+        box.GotKeyboardFocus += HotkeyBox_GotFocus;
+        box.LostKeyboardFocus += HotkeyBox_LostFocus;
+        box.PreviewKeyDown += HotkeyBox_PreviewKeyDown;
+        return box;
+    }
+
     private void BuildHotkeyRows()
     {
+        var header = HotkeyGrid(new Thickness(0, 4, 0, 2));
+        foreach (var (text, column) in new[] { ("Shortcut", 1), ("Second shortcut", 3) })
+        {
+            var label = new TextBlock { Text = text, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center };
+            label.SetResourceReference(TextBlock.ForegroundProperty, "SubtleTextBrush");
+            Grid.SetColumn(label, column);
+            header.Children.Add(label);
+        }
+        HotkeyRows.Children.Add(header);
+
         foreach (var action in Enum.GetValues<HotkeyAction>())
         {
-            var grid = new Grid { Margin = new Thickness(0, 6, 0, 6) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition());
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
+            var grid = HotkeyGrid(new Thickness(0, 6, 0, 6));
 
             var labels = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            labels.Children.Add(new TextBlock { Text = Hotkey.Describe(action), FontWeight = FontWeights.SemiBold });
+            labels.Children.Add(new TextBlock { Text = Hotkey.Describe(action), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 12, 0) });
             var status = new TextBlock
             {
-                Foreground = (Brush)FindResource("DangerBrush"),
                 FontSize = 12,
                 TextWrapping = TextWrapping.Wrap,
                 Visibility = Visibility.Collapsed,
                 Margin = new Thickness(0, 2, 12, 0),
             };
+            status.SetResourceReference(TextBlock.ForegroundProperty, "DangerBrush");
             labels.Children.Add(status);
 
-            var box = new TextBox
-            {
-                IsReadOnly = true,
-                IsReadOnlyCaretVisible = false,
-                Cursor = Cursors.Hand,
-                Height = 32,
-                Padding = new Thickness(8, 0, 8, 0),
-                VerticalContentAlignment = VerticalAlignment.Center,
-                HorizontalContentAlignment = HorizontalAlignment.Center,
-                FontWeight = FontWeights.SemiBold,
-                ToolTip = "Click, then press a new shortcut",
-                Tag = action,
-            };
-            System.Windows.Automation.AutomationProperties.SetName(box, Hotkey.Describe(action));
-            box.GotKeyboardFocus += HotkeyBox_GotFocus;
-            box.LostKeyboardFocus += HotkeyBox_LostFocus;
-            box.PreviewKeyDown += HotkeyBox_PreviewKeyDown;
+            var box = HotkeyBox(action, second: false);
+            var secondBox = HotkeyBox(action, second: true);
             Grid.SetColumn(box, 1);
+            Grid.SetColumn(secondBox, 3);
 
             grid.Children.Add(labels);
             grid.Children.Add(box);
+            grid.Children.Add(secondBox);
             HotkeyRows.Children.Add(grid);
-            _hotkeyRows[action] = (box, status);
+            _hotkeyRows[action] = (box, secondBox, status);
         }
     }
 
     private void RefreshHotkeyRows()
     {
         var failed = _main.Hotkeys?.Failed ?? [];
-        foreach (var (action, (box, status)) in _hotkeyRows)
+        foreach (var (action, (box, secondBox, status)) in _hotkeyRows)
         {
             if (!box.IsKeyboardFocused)
                 box.Text = S.GetHotkey(action).ToDisplayString();
-            var isFailed = failed.Contains(action) && (S.ValueGrabEnabled || !Hotkey.IsValueGrabAction(action));
-            status.Text = isFailed ? "Windows wouldn't register this. Another app may be using it." : "";
+            if (!secondBox.IsKeyboardFocused)
+                secondBox.Text = S.GetSecondHotkey(action)?.ToDisplayString() ?? "—";
+            var refused = failed.Where(f => f.Action == action).Select(f => f.Hotkey.ToDisplayString()).ToList();
+            var isFailed = refused.Count > 0 && (S.ValueGrabEnabled || !Hotkey.IsValueGrabAction(action));
+            status.Text = isFailed ? $"Windows wouldn't register {string.Join(" or ", refused)}. Another app may be using it." : "";
             status.Visibility = isFailed ? Visibility.Visible : Visibility.Collapsed;
         }
     }
@@ -528,11 +579,18 @@ public partial class SettingsWindow : Window
     {
         e.Handled = true;
         var box = (TextBox)sender;
-        var action = (HotkeyAction)box.Tag;
+        var (action, second) = ((HotkeyAction, bool))box.Tag;
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
 
         if (key == Key.Escape)
         {
+            NavHotkeys.Focus();
+            return;
+        }
+        if (second && key is Key.Back or Key.Delete && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            S.SetSecondHotkey(action, null);
+            _store.Save();
             NavHotkeys.Focus();
             return;
         }
@@ -545,21 +603,33 @@ public partial class SettingsWindow : Window
         }
 
         var hotkey = new Hotkey(mods, key);
-        var (_, status) = _hotkeyRows[action];
+        var (_, _, status) = _hotkeyRows[action];
         if (!hotkey.IsValidGlobal)
         {
             ShowRowError(status, "Include Ctrl or Alt so the shortcut doesn't block normal typing.");
             return;
         }
 
-        var clash = Enum.GetValues<HotkeyAction>().FirstOrDefault(a => a != action && S.GetHotkey(a) == hotkey, action);
-        if (clash != action)
+        if (key == Key.Delete && mods.HasFlag(ModifierKeys.Control) && mods.HasFlag(ModifierKeys.Alt))
         {
-            ShowRowError(status, $"Already used for \"{Hotkey.Describe(clash)}\".");
+            ShowRowError(status, "Windows keeps Ctrl+Alt+Delete for itself (the number-pad period is the same key).");
             return;
         }
 
-        S.SetHotkey(action, hotkey);
+        var current = second ? S.GetSecondHotkey(action) : S.GetHotkey(action);
+        var clash = S.AllBindings().FirstOrDefault(b => b.Hotkey == hotkey && !(b.Action == action && b.Hotkey == current));
+        if (clash != default)
+        {
+            ShowRowError(status, clash.Action == action
+                ? "That's already this action's other shortcut."
+                : $"Already used for \"{Hotkey.Describe(clash.Action)}\".");
+            return;
+        }
+
+        if (second)
+            S.SetSecondHotkey(action, hotkey);
+        else
+            S.SetHotkey(action, hotkey);
         _store.Save();
         NavHotkeys.Focus();
     }
@@ -573,6 +643,7 @@ public partial class SettingsWindow : Window
     private void ResetHotkeys_Click(object sender, RoutedEventArgs e)
     {
         S.Hotkeys.Clear();
+        S.SecondHotkeys.Clear();
         _store.Save();
     }
 }

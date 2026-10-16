@@ -184,6 +184,31 @@ public class VisualSmokeTests
         Pump(400);
         Save(settings, Path.Combine(outDir, "10-settings-highlights.png"));
         settings.Close();
+
+        // Dark theme: same scene (highlights, band, Value Grab chips), then Settings pages.
+        store.Settings.Theme = LineByLine.Services.AppTheme.Dark;
+        store.Settings.ValueGrabEnabled = true;
+        store.Save();
+        Pump(600);
+        Save(window, Path.Combine(outDir, "11-dark.png"));
+        settings = new SettingsWindow(store, window) { Left = -20000, Top = 0, Height = 900, ShowActivated = false };
+        settings.Show();
+        ((System.Windows.Controls.RadioButton)settings.FindName("NavHighlights")).IsChecked = true;
+        Pump(400);
+        Save(settings, Path.Combine(outDir, "12-dark-settings-highlights.png"));
+        ((System.Windows.Controls.RadioButton)settings.FindName("NavAppearance")).IsChecked = true;
+        Pump(300);
+        Save(settings, Path.Combine(outDir, "13-dark-settings-appearance.png"));
+        ((System.Windows.Controls.RadioButton)settings.FindName("NavUpdates")).IsChecked = true;
+        Pump(300);
+        Save(settings, Path.Combine(outDir, "14-dark-settings-updates.png"));
+        ((System.Windows.Controls.RadioButton)settings.FindName("NavHotkeys")).IsChecked = true;
+        Pump(300);
+        Save(settings, Path.Combine(outDir, "15-dark-settings-hotkeys.png"));
+        settings.Close();
+        store.Settings.Theme = LineByLine.Services.AppTheme.System;
+        store.Settings.ValueGrabEnabled = false;
+        store.Save();
         store.Settings.Highlights.Clear();
 
         window.Close();
@@ -206,9 +231,18 @@ public class VisualSmokeTests
 
     private static void Save(Window window, string path)
     {
+        // Paint the window's own background first: it isn't part of its content, and without it
+        // anything sitting directly on the window looks washed out in the PNG.
         var root = (FrameworkElement)window.Content;
-        var bmp = new RenderTargetBitmap((int)root.ActualWidth, (int)root.ActualHeight, 96, 96, PixelFormats.Pbgra32);
-        bmp.Render(root);
+        var size = new Size(root.ActualWidth, root.ActualHeight);
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(window.Background, null, new Rect(size));
+            dc.DrawRectangle(new VisualBrush(root), null, new Rect(size));
+        }
+        var bmp = new RenderTargetBitmap((int)size.Width, (int)size.Height, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(visual);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bmp));
         using var fs = File.Create(path);

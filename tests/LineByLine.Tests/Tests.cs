@@ -89,6 +89,35 @@ public class HotkeyTests
     }
 
     [Fact]
+    public void NumberPadKeysHaveReadableNames()
+    {
+        Assert.Equal("Ctrl+Alt+Num 2", new Hotkey(ModifierKeys.Control | ModifierKeys.Alt, Key.NumPad2).ToDisplayString());
+        Assert.Equal("Ctrl+Alt+Num +", new Hotkey(ModifierKeys.Control | ModifierKeys.Alt, Key.Add).ToDisplayString());
+        Assert.Equal("Ctrl+Alt+.", Hotkey.Defaults[HotkeyAction.HighlightLine].ToDisplayString());
+        Assert.True(Hotkey.TryParse("Ctrl+Alt+NumPad8", out var hk));
+        Assert.Equal(Key.NumPad8, hk.Key);
+    }
+
+    [Fact]
+    public void SecondShortcuts_DefaultToTheNumberPad_AndCanBeCleared()
+    {
+        var s = new AppSettings();
+        var bindings = s.AllBindings().ToList();
+
+        Assert.Contains((HotkeyAction.HighlightLine, new Hotkey(ModifierKeys.Control | ModifierKeys.Alt, Key.Add)), bindings);
+        Assert.Contains((HotkeyAction.NextLines, new Hotkey(ModifierKeys.Control | ModifierKeys.Alt, Key.NumPad2)), bindings);
+        Assert.Contains((HotkeyAction.NextLines, Hotkey.Defaults[HotkeyAction.NextLines]), bindings); // main one still there
+        Assert.Null(s.GetSecondHotkey(HotkeyAction.ToggleDim));
+
+        s.SetSecondHotkey(HotkeyAction.HighlightLine, null);
+        Assert.Null(s.GetSecondHotkey(HotkeyAction.HighlightLine));
+        Assert.DoesNotContain(s.AllBindings(), b => b.Hotkey.Key == Key.Add);
+
+        // Every default shortcut, main or second, is unique.
+        Assert.Equal(bindings.Count, bindings.Select(b => b.Hotkey).Distinct().Count());
+    }
+
+    [Fact]
     public void StepFollowsLinesUntilSetExplicitly()
     {
         var s = new AppSettings { LinesInView = 3 };

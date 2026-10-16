@@ -31,6 +31,18 @@ public readonly record struct Hotkey(ModifierKeys Modifiers, Key Key)
         [HotkeyAction.HighlightLine] = new(ModifierKeys.Control | ModifierKeys.Alt, Key.OemPeriod),
     };
 
+    /// <summary>
+    /// Second shortcuts, for working from the number pad. Num 2 and Num 8 are also the arrow
+    /// keys when Num Lock is off, so they move the band either way. (Ctrl+Alt+Num . can't be
+    /// used: Windows reads it as Ctrl+Alt+Delete.)
+    /// </summary>
+    public static readonly IReadOnlyDictionary<HotkeyAction, Hotkey> SecondDefaults = new Dictionary<HotkeyAction, Hotkey>
+    {
+        [HotkeyAction.NextLines] = new(ModifierKeys.Control | ModifierKeys.Alt, Key.NumPad2),
+        [HotkeyAction.PreviousLines] = new(ModifierKeys.Control | ModifierKeys.Alt, Key.NumPad8),
+        [HotkeyAction.HighlightLine] = new(ModifierKeys.Control | ModifierKeys.Alt, Key.Add),
+    };
+
     /// <summary>Hotkeys that only exist while Value Grab is on.</summary>
     public static bool IsValueGrabAction(HotkeyAction action) =>
         action is HotkeyAction.CopyValue or HotkeyAction.CopyAllValues;
@@ -117,6 +129,12 @@ public readonly record struct Hotkey(ModifierKeys Modifiers, Key Key)
         Key.PageDown => "PgDn",
         Key.PageUp => "PgUp",
         Key.OemPeriod => ".",
+        >= Key.NumPad0 and <= Key.NumPad9 => "Num " + (int)(key - Key.NumPad0),
+        Key.Add => "Num +",
+        Key.Subtract => "Num −",
+        Key.Multiply => "Num *",
+        Key.Divide => "Num /",
+        Key.Decimal => "Num .",
         Key.OemComma => ",",
         >= Key.D0 and <= Key.D9 => ((int)(key - Key.D0)).ToString(),
         _ => key.ToString(),

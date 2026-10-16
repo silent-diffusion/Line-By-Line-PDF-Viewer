@@ -3,7 +3,7 @@
 A lightweight Windows PDF viewer for **line-by-line data entry**. It spotlights one or more lines of a document, dims the rest of the page, and lets you step to the next line with a global hotkey, without leaving Excel.
 
 > Repo: https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer
-> Status: **v0.7**: highlights. Installer and in-app updates since v0.5. [Download the latest release](https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer/releases/latest)
+> Status: **v0.8**: dark theme and number-pad shortcuts. Installer and in-app updates since v0.5. [Download the latest release](https://github.com/silent-diffusion/Line-By-Line-PDF-Viewer/releases/latest)
 
 ---
 
@@ -45,7 +45,7 @@ You never click back into the viewer.
 - **Scanned PDFs and images** (PNG, JPG, TIFF, BMP): OCR finds where the text is on the page using the **built-in Windows OCR engine** (offline, nothing extra to install). Each page is read at a few resolutions and the words are merged, because Windows OCR tends to drop short, isolated numbers (a quantity alone in its column) and which ones it drops changes with resolution. The band works just like on a digital PDF, column focus included. The bottom bar shows **OCR** on those pages, as a reminder to check digits.
 
 ### Global hotkeys (work while Excel has focus)
-All rebindable in Settings.
+All rebindable in Settings → Hotkeys. Each action can also have a **second shortcut**; by default the number pad gets `Ctrl+Alt+Num 2` / `Ctrl+Alt+Num 8` (next/previous) and `Ctrl+Alt+Num +` (highlight).
 
 | Action | Default |
 |---|---|
@@ -59,6 +59,8 @@ All rebindable in Settings.
 | Highlight line (press again to remove) | `Ctrl+Alt+.` |
 
 > Note: some Intel graphics drivers use `Ctrl+Alt+Arrow` to rotate the screen. If that happens, turn off the driver hotkeys or rebind them in Line by Line.
+>
+> `Ctrl+Alt+` the number-pad period can't be used: it's the same key as Delete, and Windows keeps Ctrl+Alt+Delete for itself before any app sees it. Use `Ctrl+Alt+.` on the main keyboard, or `Ctrl+Alt+Num +`.
 
 ### Value Grab (optional, off by default)
 - Turn it on with the **$ Value Grab** button in the toolbar or in Settings → Value Grab.
@@ -81,6 +83,9 @@ All rebindable in Settings.
   - **Highlight lines automatically** as the band moves forward past them (off by default).
   - **Save highlights into the PDF file** (off by default): writes standard PDF highlight annotations so Acrobat, Edge, Chrome and other viewers show them. Off means the file is never modified. Images and scans keep their highlights in the app.
   - **Clear all highlights** for the open document, including any saved inside the PDF.
+
+### Appearance
+- **Light or dark theme.** By default it follows Windows' app mode (Settings → Personalization → Colors) and switches live when that changes; choose Light or Dark in Settings → Appearance to override. Pages stay white in both.
 
 ### Window
 - **Always on top**: toggle in Settings (default: off).
@@ -170,6 +175,7 @@ Target: Windows 10/11, x64.
 - **v0.5** ✅: one-click installer, Settings → Updates (check, release notes, update & restart), automatic updates, app icon
 - **v0.6** ✅: auto grab; rightmost-value pick (default) or rightmost dollar amount; OCR number repair
 - **v0.7** ✅: highlights (hotkey, colour, whole line or value, top or all lines, auto-highlight, optional saving into the PDF)
+- **v0.8** ✅: dark theme following Windows (with Light/Dark override); second shortcuts with number-pad defaults
 - **Later**: batch / multi-file queue, code signing
 
 ## License
